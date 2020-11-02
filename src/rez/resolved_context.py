@@ -213,7 +213,7 @@ class ResolvedContext(object):
         self.package_orderers = package_orderers
 
         # settings that affect context execution
-        self.append_sys_path = config.inherit_parent_environment
+        self.append_sys_path = True
 
         # patch settings
         self.default_patch_lock = PatchLock.no_lock
@@ -1473,8 +1473,7 @@ class ResolvedContext(object):
 
         # -- SINCE SERIALIZE VERSION 4.4
 
-        r.append_sys_path = d.get("append_sys_path",
-                                  config.inherit_parent_environment)
+        r.append_sys_path = d.get("append_sys_path", True)
 
         # track context usage
         if config.context_tracking_host:

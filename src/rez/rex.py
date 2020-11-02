@@ -1141,8 +1141,12 @@ class RexExecutor(object):
         sh = self.interpreter if isinstance(self.interpreter, Shell) \
             else create_shell()
 
-        paths = sh.get_syspaths()
-        paths_str = os.pathsep.join(paths)
+        if config.inherit_parent_environment:
+            paths = sh.get_syspaths()
+            paths_str = os.pathsep.join(paths)
+        else:
+            paths_str = sh.environment()["PATH"]
+
         self.env.PATH.append(paths_str)
 
     def prepend_rez_path(self):
