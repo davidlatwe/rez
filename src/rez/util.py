@@ -37,6 +37,8 @@ def create_executable_script(filepath, body, program=None):
             is used as the script body.
         program (str): Name of program to launch the script, 'python' if None
     """
+    from rez.utils.platform_ import platform_
+
     program = program or "python"
     if callable(body):
         from rez.utils.sourcecode import SourceCode
@@ -48,7 +50,17 @@ def create_executable_script(filepath, body, program=None):
 
     with open(filepath, 'w') as f:
         # TODO: make cross platform
-        f.write("#!/usr/bin/env %s\n" % program)
+        if (platform_.name == "windows"
+                and filepath.lower().endswith(".cmd")):
+            # following lines of batch script will be stripped
+            # before yaml.load
+            f.write("@echo off\n")
+            f.write("%s.exe %%~dpnx0\n" % program)
+            f.write("goto :eof\n")  # skip YAML body
+            f.write(":: YAML\n")  # comment for human
+        else:
+            f.write("#!/usr/bin/env %s\n" % program)
+
         f.write(body)
 
     # TODO: Although Windows supports os.chmod you can only set the readonly
@@ -67,6 +79,12 @@ def create_forwarding_script(filepath, module, func_name, *nargs, **kwargs):
     is used internally by Rez to dynamically create a script that uses Rez,
     even though the parent environment may not be configured to do so.
     """
+    from rez.utils.platform_ import platform_
+
+    if (platform_.name == "windows"
+            and os.path.splitext(filepath)[-1].lower() != ".cmd"):
+        filepath += ".cmd"
+
     doc = dict(
         module=module,
         func_name=func_name)
