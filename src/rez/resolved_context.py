@@ -212,6 +212,9 @@ class ResolvedContext(object):
 
         self.package_orderers = package_orderers
 
+        # settings that affect context execution
+        self.append_sys_path = config.inherit_parent_environment
+
         # patch settings
         self.default_patch_lock = PatchLock.no_lock
         self.patch_locks = {}
@@ -1329,6 +1332,8 @@ class ResolvedContext(object):
             package_requests=list(map(str, self._package_requests)),
             package_paths=self.package_paths,
 
+            append_sys_path=self.append_sys_path,
+
             default_patch_lock=self.default_patch_lock.name,
 
             rez_version=self.rez_version,
@@ -1465,6 +1470,11 @@ class ResolvedContext(object):
         # -- SINCE SERIALIZE VERSION 4.3
 
         r.num_loaded_packages = d.get("num_loaded_packages", -1)
+
+        # -- SINCE SERIALIZE VERSION 4.4
+
+        r.append_sys_path = d.get("append_sys_path",
+                                  config.inherit_parent_environment)
 
         # track context usage
         if config.context_tracking_host:
@@ -1692,17 +1702,17 @@ class ResolvedContext(object):
         # append suite paths based on suite visibility setting
         self._append_suite_paths(executor)
 
-        if config.inherit_parent_environment:
+        if self.append_sys_path:
             # append system paths
             executor.append_system_paths()
 
-            # add rez path so that rez commandline tools are still available within
-            # the resolved environment
-            mode = RezToolsVisibility[config.rez_tools_visibility]
-            if mode == RezToolsVisibility.append:
-                executor.append_rez_path()
-            elif mode == RezToolsVisibility.prepend:
-                executor.prepend_rez_path()
+        # add rez path so that rez commandline tools are still available within
+        # the resolved environment
+        mode = RezToolsVisibility[config.rez_tools_visibility]
+        if mode == RezToolsVisibility.append:
+            executor.append_rez_path()
+        elif mode == RezToolsVisibility.prepend:
+            executor.prepend_rez_path()
 
     def _append_suite_paths(self, executor):
         from rez.suite import Suite
