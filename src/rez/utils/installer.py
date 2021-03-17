@@ -80,6 +80,9 @@ ${_rez_python:2} -E $(dirname $0)/%(name)s.py
 
     scripts = []
 
+    if not os.path.isdir(target_dir):
+        os.makedirs(target_dir)
+
     for specification in specifications:
         entry = get_export_entry(specification)
 
