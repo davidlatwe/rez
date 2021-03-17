@@ -61,7 +61,7 @@ import re
 import os
 import sys
 if "REZ_PRODUCTION_PATH" in os.environ:
-    sys.path.append(os.environ["REZ_PRODUCTION_PATH"])
+    sys.path.insert(0, os.environ["REZ_PRODUCTION_PATH"])
 from %(module)s import %(import_name)s
 if __name__ == '__main__':
     sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])
@@ -70,12 +70,12 @@ if __name__ == '__main__':
 
     CMD_TEMPLATE = r'''@echo off
 set /p _rez_python=< %%~dp0.rez_production_install
-%%_rez_python:~2%% -E %%~dp0%(name)s.py
+%%_rez_python:~2%% -E %%~dp0%(name)s_.py
 '''
 
     BASH_TEMPLATE = r'''
 export _rez_python=$(head -1 $(dirname $0)/.rez_production_install)
-${_rez_python:2} -E $(dirname $0)/%(name)s.py
+${_rez_python:2} -E $(dirname $0)/%(name)s_.py
 '''
 
     scripts = []
@@ -84,9 +84,9 @@ ${_rez_python:2} -E $(dirname $0)/%(name)s.py
         os.makedirs(target_dir)
 
     for specification in specifications:
-        entry = get_export_entry(specification)
-
-        python_script = os.path.join(target_dir, entry.name) + ".py"
+        entry = _get_export_entry(specification)
+        # add a trailing "_" to avoid module name conflict
+        python_script = os.path.join(target_dir, entry.name) + "_.py"
         bash_script = os.path.join(target_dir, entry.name)
         cmd_script = os.path.join(target_dir, entry.name) + ".cmd"
 
@@ -110,13 +110,9 @@ ${_rez_python:2} -E $(dirname $0)/%(name)s.py
     return scripts
 
 
-ENTRY_RE = re.compile(r'''(?P<name>(\w|[-.+])+)
-                      \s*=\s*(?P<callable>(\w+)([:\.]\w+)*)
-                      \s*(\[\s*(?P<flags>[\w-]+(=\w+)?(,\s*\w+(=\w+)?)*)\s*\])?
-                      ''', re.VERBOSE)
-
-
-class ExportEntry(object):
+class _ExportEntry(object):
+    """vended from distlib.scripts
+    """
     def __init__(self, name, prefix, suffix, flags):
         self.name = name
         self.prefix = prefix
@@ -124,7 +120,15 @@ class ExportEntry(object):
         self.flags = flags
 
 
-def get_export_entry(specification):
+def _get_export_entry(specification):
+    """vended from distlib.scripts
+    """
+    ENTRY_RE = re.compile(
+        r'''(?P<name>(\w|[-.+])+)
+        \s*=\s*(?P<callable>(\w+)([:\.]\w+)*)
+        \s*(\[\s*(?P<flags>[\w-]+(=\w+)?(,\s*\w+(=\w+)?)*)\s*\])?
+        ''', re.VERBOSE)
+
     m = ENTRY_RE.search(specification)
     if not m:
         result = None
@@ -148,5 +152,5 @@ def get_export_entry(specification):
             flags = []
         else:
             flags = [f.strip() for f in flags.split(',')]
-        result = ExportEntry(name, prefix, suffix, flags)
+        result = _ExportEntry(name, prefix, suffix, flags)
     return result
