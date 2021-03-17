@@ -73,7 +73,7 @@ set /p _rez_python=< %%~dp0.rez_production_install
 %%_rez_python:~2%% -E %%~dp0%(name)s_.py %%* > con
 '''
 
-    BASH_TEMPLATE = r'''#!/bin/sh
+    BASH_TEMPLATE = r'''#!/bin/bash
 export _rez_python=$(head -1 $(dirname $0)/.rez_production_install)
 ${_rez_python:2} -E $(dirname $0)/%(name)s_.py "$@"
 '''
