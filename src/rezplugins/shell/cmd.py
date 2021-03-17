@@ -331,7 +331,7 @@ class CMD(Shell):
             if line:
                 self._addline('echo %s' % line)
             else:
-                self._addline('echo.')
+                self._addline('echo .')
 
     def error(self, value):
         for line in value.split('\n'):
