@@ -119,7 +119,7 @@ setup(
         "install_scripts": install_rez_script,
     },
     install_requires=[
-        "pip>=20.0",
+        "pip>=20.1",
         "wheel",
     ],
     classifiers=[
