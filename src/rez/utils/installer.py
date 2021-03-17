@@ -55,7 +55,6 @@ def create_rez_production_scripts(target_dir, specifications):
 
     """
     import stat
-    from pip._vendor.distlib.util import get_export_entry
 
     SCRIPT_TEMPLATE = r'''# -*- coding: utf-8 -*-
 import re
