@@ -54,6 +54,9 @@ def create_rez_production_scripts(target_dir, specifications):
     expose <dst>, it will be appended into sys.path before execute.
 
     """
+    import stat
+    from pip._vendor.distlib.util import get_export_entry
+
     SCRIPT_TEMPLATE = r'''# -*- coding: utf-8 -*-
 import re
 import os
@@ -65,11 +68,41 @@ if __name__ == '__main__':
     sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])
     sys.exit(%(func)s())
 '''
-    maker = ScriptMaker(source_dir=None, target_dir=target_dir)
-    maker.script_template = SCRIPT_TEMPLATE
-    maker.executable = sys.executable
-    scripts = maker.make_multiple(
-        specifications=specifications,
-        options=dict(interpreter_args=["-E"])
-    )
+
+    CMD_TEMPLATE = r'''@echo off
+set /p _rez_python=< %%~dp0.rez_production_install
+%%_rez_python:~2%% -E %%~dp0%(name)s.py
+'''
+
+    BASH_TEMPLATE = r'''
+export _rez_python=$(head -1 $(dirname $0)/.rez_production_install)
+${_rez_python:2} -E $(dirname $0)/%(name)s.py
+'''
+
+    scripts = []
+
+    for specification in specifications:
+        entry = get_export_entry(specification)
+
+        python_script = os.path.join(target_dir, entry.name) + ".py"
+        bash_script = os.path.join(target_dir, entry.name)
+        cmd_script = os.path.join(target_dir, entry.name) + ".cmd"
+
+        with open(python_script, "w") as s:
+            s.write(SCRIPT_TEMPLATE % dict(
+                module=entry.prefix,
+                import_name=entry.suffix.split('.')[0],
+                func=entry.suffix
+            ))
+
+        with open(cmd_script, "w") as s:
+            s.write(CMD_TEMPLATE % dict(name=entry.name))
+
+        with open(bash_script, "w") as s:
+            s.write(BASH_TEMPLATE % dict(name=entry.name))
+        os.chmod(bash_script, stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH
+                 | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+        scripts += [python_script, bash_script, cmd_script]
+
     return scripts
