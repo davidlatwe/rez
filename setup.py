@@ -118,6 +118,9 @@ setup(
     cmdclass={
         "install_scripts": install_rez_script,
     },
+    install_requires=[
+        "wheel",
+    ],
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
