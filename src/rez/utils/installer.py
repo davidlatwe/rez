@@ -1,10 +1,10 @@
 from __future__ import print_function
 
 import rez
-from rez.vendor.distlib.scripts import ScriptMaker
 from rez.package_maker import make_package
 from rez.system import system
 import os.path
+import re
 import sys
 import shutil
 
@@ -106,3 +106,45 @@ ${_rez_python:2} -E $(dirname $0)/%(name)s.py
         scripts += [python_script, bash_script, cmd_script]
 
     return scripts
+
+
+ENTRY_RE = re.compile(r'''(?P<name>(\w|[-.+])+)
+                      \s*=\s*(?P<callable>(\w+)([:\.]\w+)*)
+                      \s*(\[\s*(?P<flags>[\w-]+(=\w+)?(,\s*\w+(=\w+)?)*)\s*\])?
+                      ''', re.VERBOSE)
+
+
+class ExportEntry(object):
+    def __init__(self, name, prefix, suffix, flags):
+        self.name = name
+        self.prefix = prefix
+        self.suffix = suffix
+        self.flags = flags
+
+
+def get_export_entry(specification):
+    m = ENTRY_RE.search(specification)
+    if not m:
+        result = None
+        if '[' in specification or ']' in specification:
+            raise Exception("Invalid specification '%s'" % specification)
+    else:
+        d = m.groupdict()
+        name = d['name']
+        path = d['callable']
+        colons = path.count(':')
+        if colons == 0:
+            prefix, suffix = path, None
+        else:
+            if colons != 1:
+                raise Exception("Invalid specification '%s'" % specification)
+            prefix, suffix = path.split(':')
+        flags = d['flags']
+        if flags is None:
+            if '[' in specification or ']' in specification:
+                raise Exception("Invalid specification '%s'" % specification)
+            flags = []
+        else:
+            flags = [f.strip() for f in flags.split(',')]
+        result = ExportEntry(name, prefix, suffix, flags)
+    return result
