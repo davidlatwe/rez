@@ -70,12 +70,12 @@ if __name__ == '__main__':
 
     CMD_TEMPLATE = r'''@echo off
 set /p _rez_python=< %%~dp0.rez_production_install
-%%_rez_python:~2%% -E %%~dp0%(name)s_.py
+%%_rez_python:~2%% -E %%~dp0%(name)s_.py %%*
 '''
 
     BASH_TEMPLATE = r'''
 export _rez_python=$(head -1 $(dirname $0)/.rez_production_install)
-${_rez_python:2} -E $(dirname $0)/%(name)s_.py
+${_rez_python:2} -E $(dirname $0)/%(name)s_.py $@
 '''
 
     scripts = []
