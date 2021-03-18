@@ -64,13 +64,13 @@ if "REZ_PRODUCTION_PATH" in os.environ:
     sys.path.insert(0, os.environ["REZ_PRODUCTION_PATH"])
 from %(module)s import %(import_name)s
 if __name__ == '__main__':
-    sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])
+    sys.argv[0] = re.sub(r'(-script\.pyw|\.exe\.cmd)?$', '', sys.argv[0])
     sys.exit(%(func)s())
 '''
 
     CMD_TEMPLATE = r'''@echo off
 set /p _rez_python=< %%~dp0.rez_production_install
-%%_rez_python:~2%% -E %%~dp0%(name)s_.py %%* > con
+%%_rez_python:~2%% -E %%~dp0%(name)s_.py %%*
 '''
 
     BASH_TEMPLATE = r'''#!/bin/bash
