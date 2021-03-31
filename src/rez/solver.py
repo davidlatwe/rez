@@ -23,12 +23,16 @@ from rez.vendor.version.version import VersionRange
 from rez.vendor.version.requirement import VersionedObject, Requirement, \
     RequirementList
 from rez.vendor.enum import Enum
+from rez.vendor.six import six
 from rez.vendor.sortedcontainers.sortedset import SortedSet
 from contextlib import contextmanager
 import copy
 import time
 import sys
 import os
+
+
+basestring = six.string_types[0]
 
 
 # a hidden control for forcing to non-optimized solving mode. This is here as
@@ -960,8 +964,10 @@ class _PackageScope(_Common):
         self.variant_slice = None
         self.pr = solver.pr
         self.is_ephemeral = (package_request.name.startswith('.'))
+        self.un_expanded = (isinstance(package_request.range, basestring)
+                            and "*" in package_request.range)
 
-        if package_request.conflict or self.is_ephemeral:
+        if package_request.conflict or self.is_ephemeral or self.un_expanded:
             # these cases don't actually contain variants
             self.package_request = package_request
         else:
@@ -989,7 +995,7 @@ class _PackageScope(_Common):
         """
 
         # ephemerals are just a range intersection
-        if self.is_ephemeral:
+        if self.is_ephemeral or self.un_expanded:
             inter_range = None
             if self.is_conflict:
                 intersect_range = range_ - self.package_request.range
@@ -1064,7 +1070,7 @@ class _PackageScope(_Common):
 
         # reduction of conflicts and ephemerals is nonsensical (they have no
         # variant list to reduce)
-        if self.is_conflict or self.is_ephemeral:
+        if self.is_conflict or self.is_ephemeral or self.un_expanded:
             return (self, [])
 
         # perform the reduction
@@ -1105,7 +1111,7 @@ class _PackageScope(_Common):
         """
 
         # extraction is nonsensical for conflicts and ephemerals
-        if self.is_conflict or self.is_ephemeral:
+        if self.is_conflict or self.is_ephemeral or self.un_expanded:
             return (self, None)
 
         new_slice, package_request = self.variant_slice.extract()
@@ -1130,6 +1136,7 @@ class _PackageScope(_Common):
         if (
             self.is_conflict or
             self.is_ephemeral or
+            self.un_expanded or
             len(self.variant_slice) == 1
         ):
             return None
@@ -1153,6 +1160,7 @@ class _PackageScope(_Common):
         return (
             self.is_conflict or
             self.is_ephemeral or
+            self.un_expanded or
             (
                 len(self.variant_slice) == 1 and
                 not self.variant_slice.extractable

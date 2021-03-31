@@ -15,7 +15,7 @@ from rez.vendor.six import six
 basestring = six.string_types[0]
 
 
-def expand_requirement(request, paths=None):
+def expand_requirement(request, paths=None, delay=False):
     """Expands a requirement string like 'python-2.*', 'foo-2.*+<*', etc.
 
     Wildcards are expanded to the latest version that matches. There is also a
