@@ -496,6 +496,65 @@ class TestVersionSchema(unittest.TestCase):
         _confl(["foo", "~bah-5+", "bah-7..12", "bah-2"],
                "bah-7..12", "bah-2")
 
+    def test_wildcard_version(self):
+        from rez.vendor.version.version import \
+            _WildSubToken, WildVersion, WildVersionRange
+
+        # self.assertTrue(Version("3") in WildVersionRange("1<=3.*"))
+        # self.assertTrue(WildVersion("3.*") in WildVersionRange("1<=3.*"))
+        # self.assertTrue(WildVersion("5.*") in WildVersionRange("3..*"))
+        # self.assertTrue(WildVersion("99.**") in WildVersionRange("3..*"))
+        # self.assertTrue(WildVersion("2") not in WildVersionRange("3..*"))
+        # self.assertTrue(WildVersion("4.*") in VersionRange("3..5"))
+        # self.assertTrue(VersionRange("") not in WildVersionRange("3..*"))
+        # self.assertTrue(WildVersionRange("3..*") in VersionRange(""))
+
+        self.assertTrue([_WildSubToken("3")] < [_WildSubToken("*")])
+        self.assertTrue([_WildSubToken("3")] > [_WildSubToken("*")])
+        self.assertTrue([_WildSubToken("3")] == [_WildSubToken("*")])
+
+        # Is these correct ? TOO BOLD
+        self.assertTrue(WildVersion("*.*") > WildVersion("3"))
+        self.assertTrue(WildVersion("*.*") in WildVersionRange("3..*"))
+        self.assertTrue(WildVersion("*") not in VersionRange("3..5"))
+
+        # WIP
+        print(WildVersion("*.*"))
+        print(WildVersion("*.**"))
+        print(WildVersion("*.**").tokens)
+
+        print(WildVersionRange("0.1<=2.0"))
+        print(WildVersionRange("*.*<=*.*"))
+        print(WildVersionRange("*<=*.*"))
+        # print(WildVersionRange("0>=1.25"))  # Syntax error in version range '0>=1.25'
+        print(WildVersionRange("0<=1.25"))
+
+        # print(WildVersionRange("6>=*.**"))  # Syntax error in version range '6>=*.**'
+        # print(WildVersionRange("6<=*.**"))  # WildVersionError: Invalid bound
+        # print(WildVersionRange("6.*+<*.**"))  # WildVersionError: Invalid bound
+        print(WildVersionRange("6.*+<7.**"))
+        print(WildVersionRange("6.**+<7.**"))
+
+        print(WildVersionRange("6.1<=7.**"))
+        # print(WildVersionRange("7.1<=7.**"))  # WildVersionError: Invalid bound
+        print(WildVersionRange("7.1<=7.2*"))
+
+        # print(VersionRange("8<=7"))  # VersionError: Invalid bound
+
+        assert _WildSubToken("**") > _WildSubToken("8")
+        assert _WildSubToken("**") < _WildSubToken("8")
+
+        assert _WildSubToken("*") < _WildSubToken("*")
+        assert _WildSubToken("*") > _WildSubToken("*")
+        assert _WildSubToken("*") > _WildSubToken("8")
+        assert _WildSubToken("*") < _WildSubToken("8")
+        assert _WildSubToken("*") > _WildSubToken("x")
+        assert _WildSubToken("*") < _WildSubToken("x")
+
+        assert _WildSubToken("x") != _WildSubToken("8")
+        assert _WildSubToken("x") < _WildSubToken("8")
+        assert not _WildSubToken("x") > _WildSubToken("8")
+
 
 if __name__ == '__main__':
     unittest.main()
