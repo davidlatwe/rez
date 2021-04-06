@@ -6,6 +6,7 @@ from __future__ import absolute_import
 from string import Formatter
 from rez.vendor.enum import Enum
 from rez.vendor.version.requirement import Requirement
+from rez.vendor.version.version import VersionRange
 from rez.exceptions import PackageRequestError
 from rez.vendor.six import six
 from pprint import pformat
@@ -17,6 +18,9 @@ import time
 
 PACKAGE_NAME_REGSTR = r"[a-zA-Z_0-9](\.?[a-zA-Z0-9_]+)*"
 PACKAGE_NAME_REGEX = re.compile(r"^%s\Z" % PACKAGE_NAME_REGSTR)
+
+REQUEST_WILDCARD_REGSTR = r"[-@#=<>\.]\*"
+REQUEST_WILDCARD_REGEX = re.compile(REQUEST_WILDCARD_REGSTR)
 
 ENV_VAR_REGSTR = r'\$(\w+|\{[^}]*\})'
 ENV_VAR_REGEX = re.compile(ENV_VAR_REGSTR)
@@ -52,6 +56,36 @@ def is_valid_package_name(name, raise_error=False):
     return is_valid
 
 
+def suppress_wildcard_expand(request):
+    match = next(REQUEST_WILDCARD_REGEX.finditer(request), None)
+    if not match:
+        return request
+    suppressed = request[:match.start()]
+    return UnexpandedRequestString(suppressed, request)
+
+
+class UnexpandedRequestString(str):
+    def __new__(cls, suppressed, full_request):
+        string = super(UnexpandedRequestString, cls).__new__(cls, suppressed)
+        string.full_request = full_request
+        string.expanded = None
+        return string
+
+    def expand(self):
+        print("X!!!!!!!!!!!!!!!!!!!!")
+        self.expanded = "soft_dep-1.1.0"
+
+    def __str__(self):
+        print("??????????????", self.expanded)
+        return self.expanded or "soft_dep-1.1.0"
+
+
+class RequestExpansionHandler(object):
+    directives = [
+        "wildcard",
+    ]
+
+
 class PackageRequest(Requirement):
     """A package request parser.
 
@@ -76,6 +110,30 @@ class PackageRequest(Requirement):
         else:
             self.ephemeral = False
             is_valid_package_name(self.name, True)
+
+        if isinstance(s, UnexpandedRequestString):
+            self.unexpanded = True
+            self.expansion_directive = ("wildcard", s.full_request)
+        else:
+            self.unexpanded = False
+            self.expansion_directive = None
+
+        self._s = s
+
+    def expand(self):
+        if self.unexpanded:
+            self.range_ = VersionRange("1.1.0")
+            self._s.expand()
+            # print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+
+    # def merged(self, other):
+    #     merged_req = super(PackageRequest, self).merged(other)
+    #
+    #     if merged_req and (self.unexpanded
+    #                        or getattr(other, "unexpanded", False)):
+    #         pass
+    #
+    #     return merged_req
 
 
 class StringFormatType(Enum):

@@ -358,6 +358,12 @@ class LocalBuildProcess(BuildProcessHelper):
                 raise
 
             # install variant into package repository (ie update target package.py)
+            # if variant.name == "soft":
+            #     print("???????")
+            #     overrides = {"requires": ["soft_dep-1.1.0"]}
+            # else:
+            #     overrides = None
+            # variant.install(install_path, overrides=overrides)
             variant.install(install_path)
 
         return build_result.get("build_env_script")

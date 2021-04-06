@@ -444,10 +444,16 @@ class Variant(PackageBaseResourceWrapper):
             `Variant` object - the (existing or newly created) variant in the
             specified repository. If `dry_run` is True, None may be returned.
         """
+        from rez.utils.formatting import PackageRequest
+        if self.name == "soft":
+            setattr(self.parent.resource, "requires", [PackageRequest("soft_dep-1.1.0")])
         repo = package_repository_manager.get_repository(path)
         resource = repo.install_variant(self.resource,
                                         dry_run=dry_run,
                                         overrides=overrides)
+
+        # print("XKKKKKKKKKKKKKKKKKKKKKKKKKKKKK")
+        # print(overrides)
         if resource is None:
             return None
         elif resource is self.resource:

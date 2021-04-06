@@ -757,6 +757,9 @@ class FileSystemPackageRepository(PackageRepository):
 
             variant_version = ver
 
+        # if "requires" in overrides:
+        #     print("KKKKKKKKKKKOOOOOOOOOOOOOOOOOOOOOOOOO")
+
         # cannot install over one's self, just return existing variant
         if variant_resource._repository is self and \
                 variant_name == variant_resource.name and \
@@ -788,6 +791,9 @@ class FileSystemPackageRepository(PackageRepository):
         else:
             with self._lock_package(variant_name, variant_version):
                 variant = _create_variant()
+                # print("OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")
+                # print(variant)
+                # print(variant.requires)
 
         return variant
 
@@ -1099,6 +1105,7 @@ class FileSystemPackageRepository(PackageRepository):
             for key in package_build_only_keys:
                 obj.pop(key, None)
 
+        print(id(variant))
         new_package_data = _get_package_data(variant.parent)
         new_package_data.pop("variants", None)
         new_package_data["name"] = variant_name
@@ -1234,10 +1241,15 @@ class FileSystemPackageRepository(PackageRepository):
             if existing_package:
                 if key not in package_data:
                     package_data[key] = value
+                else:
+                    if key == "requires":
+                        print("--------------", value)
             else:
                 if value is self.remove:
                     package_data.pop(key, None)
                 else:
+                    if key == "requires":
+                        print("**************", value)
                     package_data[key] = value
 
         # timestamp defaults to now if not specified
@@ -1258,6 +1270,8 @@ class FileSystemPackageRepository(PackageRepository):
 
         with make_path_writable(pkg_base_path):
             with open_file_for_write(filepath, mode=self.package_file_mode) as f:
+                if package_data["name"] == "soft":
+                    print(package_data["requires"])
                 dump_package_data(package_data, buf=f, format_=package_format)
 
         # delete the tmp 'building' file.

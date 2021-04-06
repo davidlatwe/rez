@@ -10,9 +10,17 @@ including:
 from rez.utils.execution import Popen
 from rez.exceptions import InvalidPackageError
 from rez.vendor.six import six
+from rez.utils.formatting import suppress_wildcard_expand
 
 
 basestring = six.string_types[0]
+
+
+def late_expand_requirement(request):
+    if "*" in request:
+        return suppress_wildcard_expand(request)
+    else:
+        return request
 
 
 def expand_requirement(request, paths=None):

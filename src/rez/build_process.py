@@ -258,6 +258,23 @@ class BuildProcessHelper(BuildProcess):
         if self.verbose:
             context.print_info()
 
+        # if variant.name == "soft":
+        #     from rez.utils.formatting import PackageRequest
+        #     print("?????LLOJIJLKJ")
+        #     copied = variant.parent.resource._data.copy()
+        #     copied["requires"] = [PackageRequest("soft_dep-1.1.0")]
+        #     delattr(variant.parent.resource, "_data")
+        #     setattr(variant.parent.resource, "_data", copied)
+        #     setattr(variant.parent.resource, "requires", [PackageRequest("soft_dep-1.1.0")])
+        #     print(variant.parent.data)
+        #     print(variant.validated_data())
+        #     print(id(variant))
+
+        # for req_str in request:
+        #     print(req_str, type(req_str))
+        #     if hasattr(req_str, "expand"):
+        #         req_str.expand()
+
         # save context before possible fail, so user can debug
         rxt_filepath = os.path.join(build_path, "build.rxt")
         context.save(rxt_filepath)

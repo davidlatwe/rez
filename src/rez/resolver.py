@@ -414,6 +414,7 @@ class Resolver(object):
 
         self.resolved_packages_ = None
         self.resolved_ephemerals_ = None
+        print(">>>>>>>>>>>>")
 
         if self.status_ == ResolverStatus.solved:
             # convert solver.Variants to packages.Variants
@@ -426,6 +427,9 @@ class Resolver(object):
             for req_str in solver_dict.get("ephemerals", []):
                 req = Requirement(req_str)
                 self.resolved_ephemerals_.append(req)
+
+            for req in self.package_requests:
+                req.expand()
 
     @classmethod
     def _solver_to_dict(cls, solver):

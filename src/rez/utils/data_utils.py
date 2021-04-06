@@ -247,6 +247,9 @@ class cached_property(object):
         except AttributeError:
             raise AttributeError("can't set attribute %r on %r"
                                  % (self.name, instance))
+
+        if self.name.endswith("_data"):
+            print(self.name)
         return result
 
     @classmethod
