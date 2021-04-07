@@ -7,12 +7,20 @@ including:
 """
 
 # these imports just forward the symbols into this module's namespace
+from rez.utils.request_directives import DirectiveRequestParser
 from rez.utils.execution import Popen
 from rez.exceptions import InvalidPackageError
 from rez.vendor.six import six
 
 
 basestring = six.string_types[0]
+
+
+def late_expand_requirement(request):
+    """
+    """
+    request_ = DirectiveRequestParser.parse(request)
+    return expand_requirement(request_)
 
 
 def expand_requirement(request, paths=None):

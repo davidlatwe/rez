@@ -125,6 +125,10 @@ class TestBuild(TestBase, TempdirMixin):
         stdout = proc.communicate()[0]
         self.assertEqual('hola amigo', stdout.strip())
 
+    def _test_build_soft(self):
+        self._test_build("soft_dep", "1.1.0")
+        self._test_build("soft")
+
     @per_available_shell()
     @install_dependent()
     def test_build_whack(self):
@@ -175,6 +179,15 @@ class TestBuild(TestBase, TempdirMixin):
         proc = context.execute_command(['hai'], stdout=PIPE)
         stdout = proc.communicate()[0]
         self.assertEqual('Oh hai!', stdout.decode("utf-8").strip())
+
+    def test_build_soft(self):
+        self._test_build_soft()
+        # context = self._create_context("soft==1")
+        # print(context.requested_packages())
+        # print(context.resolved_packages)
+        path = os.path.join(self.install_root, "soft", "1", "package.py")
+        with open(path) as f:
+            print(f.read())
 
 
 if __name__ == '__main__':
