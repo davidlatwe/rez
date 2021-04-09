@@ -108,6 +108,7 @@ def expand_requirement(request, paths=None):
         if not wildcard_found:
             return None
 
+        # Wrap these #######
         range_ = VersionRange(str(version))
         package = get_latest_package(name=req.name, range_=range_, paths=paths)
 
@@ -118,6 +119,7 @@ def expand_requirement(request, paths=None):
             return package.version.trim(rank)
         else:
             return package.version
+        ###################
 
     def visit_version(version):
         # requirements like 'foo-1' are actually represented internally as

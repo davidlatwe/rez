@@ -2,6 +2,7 @@
 from rez.exceptions import PackageRequestError
 from rez.vendor.version.version import VersionRange, Version
 from rez.vendor.version.requirement import Requirement, VersionedObject
+from rez.vendor.version.util import ranking, is_valid_bound
 from rez.utils.formatting import PackageRequest
 from contextlib import contextmanager
 from threading import Lock
@@ -219,27 +220,6 @@ class DirectiveRequestParser(object):
 
             cleaned_versions[version] = version_
             return version_
-
-        def is_valid_bound(bound_):
-            lower_tokens = bound_.lower.version.tokens
-            upper_tokens = bound_.upper.version.tokens
-            return ((lower_tokens is None or lower_tokens)
-                    and (upper_tokens is None or upper_tokens))
-
-        def is_fixed_bound(bound_):
-            return (bound_.lower == bound_.upper
-                    or next(bound_.lower.version) == bound_.upper.version)
-
-        def ranking(requirement):
-            ranks_ = dict()
-            for bound_ in requirement.range_.bounds:
-                if bound_.lower_bounded():
-                    ranks_[str(bound_.lower)] = len(bound_.lower.version.tokens)
-                    if is_fixed_bound(bound_):
-                        continue
-                if bound_.upper_bounded():
-                    ranks_[str(bound_.upper)] = len(bound_.upper.version.tokens)
-            return ranks_
 
         # replace wildcards with valid version tokens that can be replaced again
         # afterwards. This produces a horrendous, but both valid and temporary,
