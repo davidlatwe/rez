@@ -56,6 +56,11 @@ def ranking(version_range):
 
 @contextmanager
 def de_wildcard(request):
+    """
+    with de_wildcard("foo-1.*") as requirement:
+        ...
+    requirement
+    """
     pass
 
 

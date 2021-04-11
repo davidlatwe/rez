@@ -109,6 +109,7 @@ def expand_requires(variant, context):
         "requires",
         "build_requires",
         "private_build_requires",
+        # "variants",  # this needs special care
     ]
     for attr in attributes:
         changed_requires = []
@@ -236,7 +237,7 @@ class DirectiveRequestParser(object):
             wildcard_map[uid] = "*"
 
         req = Requirement(request_, invalid_bound_error=False)
-        ranks = ranking(req)
+        ranks = ranking(req.range)
 
         req.range_.visit_versions(visit_version)
 
