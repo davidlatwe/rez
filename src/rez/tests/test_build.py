@@ -10,6 +10,7 @@ import unittest
 from rez.tests.util import TestBase, TempdirMixin, find_file_in_path, \
     per_available_shell, install_dependent, program_dependent
 from rez.utils.platform_ import platform_
+from rez.packages import get_package
 import shutil
 import os.path
 
@@ -182,12 +183,8 @@ class TestBuild(TestBase, TempdirMixin):
 
     def test_build_soft(self):
         self._test_build_soft()
-        # context = self._create_context("soft==1")
-        # print(context.requested_packages())
-        # print(context.resolved_packages)
-        path = os.path.join(self.install_root, "soft", "1", "package.py")
-        with open(path) as f:
-            print(f.read())
+        package = get_package("soft", "1", paths=[self.install_root])
+        self.assertEqual(str(package.requires[0]), "soft_dep-1.1.0")
 
 
 if __name__ == '__main__':

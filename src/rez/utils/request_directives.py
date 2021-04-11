@@ -20,13 +20,17 @@ class DirectiveBase(object):
 class DirectiveHarden(DirectiveBase):
     name = "harden"
 
-    def parse(self, string):
-        print(">>>>", string)
+    def parse(self, arg_string):
+        if arg_string:
+            return [int(arg_string[1:-1].strip())]
         return []
 
     def process(self, range_, version, rank=None):
-        print(range_, version, rank)
-        return range_
+        if rank:
+            version.trim(rank)
+        hardened = VersionRange.from_version(version)
+        new_range = range_.intersection(hardened)
+        return new_range
 
 
 # helpers
@@ -44,7 +48,7 @@ class RequestExpansionManager(object):
     def parse(self, string):
         for name, expander in self._handlers.items():
             if string == name or string.startswith(name + "("):
-                return name, expander.parse(string)
+                return name, expander.parse(string[len(name):])
 
     def process(self, range_, version, name, args):
         expander = self._handlers[name]
