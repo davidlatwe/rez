@@ -113,11 +113,9 @@ class PackageMaker(AttrDictWrapper):
         Returns:
             `Package` object.
         """
-        with collect_directive_requests() as _collector:
-            # get and validate package data
-            package_data = self._get_data()
-            package_data = package_schema.validate(package_data)
-            _collector.set_package(package_data)
+        # get and validate package data
+        package_data = self._get_data()
+        package_data = package_schema.validate(package_data)
 
         # check compatibility with rez version
         if "requires_rez_version" in package_data:
@@ -143,6 +141,11 @@ class PackageMaker(AttrDictWrapper):
 
         # revalidate the package for extra measure
         package.validate_data()
+
+        # save directive requests
+        with collect_directive_requests() as _collector:
+            _collector.set_package(package)
+
         return package
 
     def _get_data(self):

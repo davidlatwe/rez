@@ -90,15 +90,15 @@ def collect_directive_requests():
         _lock.release()
 
 
-def retrieve_directives(data):
+def retrieve_directives(variant):
     handle = _InventoryHandle(_identified_directives)
-    handle.set_package(data)
+    handle.set_package(variant)
     return _identified_directives.retrieve()
 
 
 def apply_expanded_requires(variant):
     handle = _InventoryHandle(_expanded_requirements)
-    handle.set_package(variant.validated_data())
+    handle.set_package(variant)
     # just like how `cached_property` caching attributes, override
     # requirement attributes internally. These change will be picked
     # up by `variant.parent.validated_data`.
@@ -117,7 +117,7 @@ def expand_requires(variant, context):
     """
     expanded = dict()
     resolved_packages = {p.name: p for p in context.resolved_packages}
-    directives = retrieve_directives(variant.validated_data())
+    directives = retrieve_directives(variant)
     attributes = [
         "requires",
         "build_requires",
@@ -129,22 +129,20 @@ def expand_requires(variant, context):
         has_expansion = False
 
         for requirement in getattr(variant, attr, None) or []:
-            directive_args = directives.get(str(requirement))
+            directive = directives.get(str(requirement))
             package = resolved_packages.get(requirement.name)
 
-            if directive_args and package:
+            if directive and package:
                 has_expansion = True
+                name, args = directive
 
-                # version = VersionedObject.construct(package.name, package.version)
-                # print(directive_args, version, package.version)
-                # requirement.range_ = VersionRange(str(package.version))
-                # requirement._str = None
                 requirement = PackageRequest(str(Requirement.construct(
                     name=package.name,
                     range=_request_expansion_manager.process(
                         requirement.range,
                         package.version,
-                        *directive_args
+                        name,
+                        args,
                     )
                 )))
 
@@ -154,7 +152,7 @@ def expand_requires(variant, context):
             expanded[attr] = changed_requires
 
     handle = _InventoryHandle(_expanded_requirements)
-    handle.set_package(variant.validated_data())
+    handle.set_package(variant)
     _expanded_requirements.put(expanded)
 
 
@@ -264,13 +262,11 @@ class _InventoryHandle(object):
     def __init__(self, inventory):
         self._inventory = inventory
 
-    def set_package(self, data):
-        # TODO: instead of asking validated data, pass in package and
-        #   take package.name, package.version,.. directly.
+    def set_package(self, package):
         identifier = (
-            data["name"],
-            str(data.get("version", "")),
-            data.get("uuid"),
+            package.name,
+            str(package.version),
+            package.uuid,
         )
         self._inventory.select(identifier)
 
