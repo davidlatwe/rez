@@ -81,19 +81,15 @@ def collect_directive_requests():
     Pour directives into anonymous space while package schema validating
     Move directives into identified space after package data validated
     """
-    handle = _InventoryHandle(_identified_directives)
-    try:
-        _lock.acquire()
-        yield handle
-        _identified_directives.check_in()
-    finally:
-        _lock.release()
+    handle = _InventoryHandle()
+    yield handle
+    _identified_directives.check_in(handle.key)
 
 
 def apply_expanded_requires(variant):
-    handle = _InventoryHandle(_expanded_requirements)
+    handle = _InventoryHandle()
     handle.set_package(variant)
-    expanded_requires = _expanded_requirements.retrieve()
+    expanded_requires = _expanded_requirements.retrieve(handle.key)
 
     # just like how `cached_property` caching attributes, override
     # requirement attributes internally. These change will be picked
@@ -111,9 +107,9 @@ def expand_requires(variant, context):
     4. pass resolved package versions and directive to expansion manager
     """
     # retrieve directives
-    handle = _InventoryHandle(_identified_directives)
+    handle = _InventoryHandle()
     handle.set_package(variant)
-    directives = _identified_directives.retrieve()
+    directives = _identified_directives.retrieve(handle.key)
 
     expanded = dict()
     resolved_packages = {p.name: p for p in context.resolved_packages}
@@ -150,9 +146,9 @@ def expand_requires(variant, context):
         if has_expansion:
             expanded[attr] = changed_requires
 
-    handle = _InventoryHandle(_expanded_requirements)
+    handle = _InventoryHandle()
     handle.set_package(variant)
-    _expanded_requirements.put(expanded)
+    _expanded_requirements.put(handle.key, expanded)
 
 
 class DirectiveRequestParser(object):
@@ -232,42 +228,37 @@ class _Inventory(object):
 
     def __init__(self):
         self._storage = dict()
-        self._key = None
 
-    def select(self, identifier):
-        if identifier not in self._storage:
-            self._storage[identifier] = dict()
-        self._key = identifier
+    def put(self, key, data):
+        self._storage[key] = data
 
-    def put(self, data):
-        self._storage[self._key] = data
+    def retrieve(self, key):
+        if key not in self._storage:
+            return dict()
+        return self._storage[key].copy()
 
-    def retrieve(self):
-        return self._storage[self._key].copy()
-
-    def drop(self):
-        self._storage.pop(self._key)
+    def drop(self, key):
+        self._storage.pop(key)
 
 
 class _DirectiveInventory(_Inventory):
 
-    def check_in(self):
-        self._storage[self._key] = _anonymous_directives.copy()
+    def check_in(self, key):
+        self._storage[key] = _anonymous_directives.copy()
         _anonymous_directives.clear()
 
 
 class _InventoryHandle(object):
 
-    def __init__(self, inventory):
-        self._inventory = inventory
+    def __init__(self):
+        self.key = None
 
     def set_package(self, package):
-        identifier = (
+        self.key = (
             package.name,
             str(package.version),
             package.uuid,
         )
-        self._inventory.select(identifier)
 
 
 def anonymous_directive_string(request):
@@ -276,7 +267,6 @@ def anonymous_directive_string(request):
     return _request_expansion_manager.to_string(name, args)
 
 
-_lock = Lock()
 _anonymous_directives = dict()
 _identified_directives = _DirectiveInventory()
 _expanded_requirements = _Inventory()
