@@ -1,5 +1,6 @@
 
 from contextlib import contextmanager
+from collections import OrderedDict
 from itertools import groupby
 from uuid import uuid4
 
@@ -36,46 +37,27 @@ def is_valid_bound(bound):
             and (upper_tokens is None or upper_tokens))
 
 
-def is_fixed_bound(bound):
-    return (bound.lower == bound.upper
-            or next(bound.lower.version) == bound.upper.version)
-
-
-def ranking(version_range):
-    ranks = dict()
-    for bound in version_range.bounds:
-        if bound.lower_bounded():
-            ranks[str(bound.lower)] = len(bound.lower.version.tokens)
-            if is_fixed_bound(bound):
-                continue
-        if bound.upper_bounded():
-            ranks[str(bound.upper)] = len(bound.upper.version.tokens)
-
-    return ranks
-
-
 @contextmanager
-def de_wildcard(request):
-    """
-    with de_wildcard("foo-1.*") as requirement:
-        ...
-    requirement
-    """
-    pass
+def dewildcard(request):
+    deer = WildcardReplacer(request)
+    yield deer
+    deer.clean()
 
 
-class WildcardVisitor(object):
+class WildcardReplacer(object):
 
     def __init__(self, request):
-        self.cleaned_versions = dict()
-        self.wildcard_map = dict()
-        self._request = request
-
-    def __enter__(self):
         from .requirement import Requirement
 
-        request = self._request
+        self.wildcard_map = dict()
+        self._req = None
+        self._on_wildcard = None
+        self._on_version = None
 
+        # replace wildcards with valid version tokens that can be replaced again
+        # afterwards. This produces a horrendous, but both valid and temporary,
+        # version string.
+        #
         while "**" in request:
             uid = "_%s_" % uuid4().hex
             request = request.replace("**", uid, 1)
@@ -86,45 +68,77 @@ class WildcardVisitor(object):
             request = request.replace("*", uid, 1)
             self.wildcard_map[uid] = "*"
 
-        req = Requirement(request, invalid_bound_error=False)
+        self._req = Requirement(request, invalid_bound_error=False)
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        # cleanup
-        pass
+    @property
+    def victim(self):
+        return self._req
 
-    def ranking(self):
-        pass
+    def on_wildcard(self, func):
+        self._on_wildcard = func
 
-    def _visit_version(self, version):
-        cleaned_versions = self.cleaned_versions
+    def on_version(self, func):
+        self._on_version = func
 
-        for v, cleaned_v in cleaned_versions.items():
-            if version == next(v):
-                return next(cleaned_v)
+    def restore(self, string):
+        for uid, token in self.wildcard_map.items():
+            string = string.replace(uid, token)
+        return string
 
-        version_ = self._clean_version(version)
-        if version_ is None:
-            return None
+    def clean(self, on_wildcard=None, on_version=None):
+        from .version import VersionRange
 
-        cleaned_versions[version] = version_
-        return version_
+        on_wildcard = on_wildcard or self._on_wildcard or (lambda v, r: v)
+        on_version = on_version or self._on_version or (lambda v, r: None)
 
-    def _clean_version(self, version):
+        req = self._req
         wildcard_map = self.wildcard_map
-        wildcard_found = False
+        cleaned_versions = dict()
 
-        while version and str(version[-1]) in wildcard_map:
-            token_ = wildcard_map[str(version[-1])]
-            version = version.trim(len(version) - 1)
+        def clean_version(version):
+            rank = len(version)
+            wildcard_found = False
 
-            if token_ == "**":
-                if wildcard_found:  # catches bad syntax '**.*'
-                    return None
-                else:
-                    wildcard_found = True
-                    break
+            on_version(version, rank)
 
-            wildcard_found = True
+            while version and str(version[-1]) in wildcard_map:
+                token_ = wildcard_map[str(version[-1])]
+                version = version.trim(len(version) - 1)
 
-        if wildcard_found:
-            return version
+                if token_ == "**":
+                    if wildcard_found:  # catches bad syntax '**.*'
+                        return None
+                    else:
+                        wildcard_found = True
+                        rank = 0
+                        break
+
+                wildcard_found = True
+
+            if wildcard_found:
+                return on_wildcard(version, rank)
+
+        def visit_version(version):
+            # requirements like 'foo-1' are actually represented internally as
+            # 'foo-1+<1_' - '1_' is the next possible version after '1'. So we have
+            # to detect this case and remap the uid-ified wildcard back here too.
+            #
+            for v, expanded_v in cleaned_versions.items():
+                if version == next(v):
+                    return next(expanded_v)
+
+            version_ = clean_version(version)
+            if version_ is None:
+                return None
+
+            cleaned_versions[version] = version_
+            return version_
+
+        req.range_.visit_versions(visit_version)
+
+        for bound in list(req.range_.bounds):
+            if not is_valid_bound(bound):
+                req.range_.bounds.remove(bound)
+
+        if not req.range_.bounds:
+            req.range_ = VersionRange()

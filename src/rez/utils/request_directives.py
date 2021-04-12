@@ -2,7 +2,7 @@
 from rez.exceptions import PackageRequestError
 from rez.vendor.version.version import VersionRange, Version
 from rez.vendor.version.requirement import Requirement, VersionedObject
-from rez.vendor.version.util import ranking, is_valid_bound
+from rez.vendor.version.util import is_valid_bound, dewildcard
 from rez.utils.formatting import PackageRequest
 from contextlib import contextmanager
 from threading import Lock
@@ -27,7 +27,7 @@ class DirectiveHarden(DirectiveBase):
 
     def process(self, range_, version, rank=None):
         if rank:
-            version.trim(rank)
+            version = version.trim(rank)
         hardened = VersionRange.from_version(version)
         new_range = range_.intersection(hardened)
         return new_range
@@ -192,85 +192,29 @@ class DirectiveRequestParser(object):
 
     @classmethod
     def convert_wildcard_to_directive(cls, request):
-        cleaned_versions = {}
-        wildcard_map = {}
-        request_ = request
+        ranks = dict()
 
-        def clean_version(version):
-            wildcard_found = False
-            while version and str(version[-1]) in wildcard_map:
-                token_ = wildcard_map[str(version[-1])]
-                version = version.trim(len(version) - 1)
+        with dewildcard(request) as deer:
+            req = deer.victim
 
-                if token_ == "**":
-                    if wildcard_found:  # catches bad syntax '**.*'
-                        return None
-                    else:
-                        wildcard_found = True
-                        break
-
-                wildcard_found = True
-
-            if wildcard_found:
-                return version
-
-        def visit_version(version):
-            for v, cleaned_v in cleaned_versions.items():
-                if version == next(v):
-                    return next(cleaned_v)
-
-            version_ = clean_version(version)
-            if version_ is None:
-                return None
-
-            cleaned_versions[version] = version_
-            return version_
-
-        # replace wildcards with valid version tokens that can be replaced again
-        # afterwards. This produces a horrendous, but both valid and temporary,
-        # version string.
-        #
-        while "**" in request_:
-            uid = "_%s_" % uuid4().hex
-            request_ = request_.replace("**", uid, 1)
-            wildcard_map[uid] = "**"
-
-        while "*" in request_:
-            uid = "_%s_" % uuid4().hex
-            request_ = request_.replace("*", uid, 1)
-            wildcard_map[uid] = "*"
-
-        req = Requirement(request_, invalid_bound_error=False)
-        ranks = ranking(req.range)
-
-        req.range_.visit_versions(visit_version)
-
-        for bound in list(req.range_.bounds):
-            if not is_valid_bound(bound):
-                req.range_.bounds.remove(bound)
-
-        if not req.range_.bounds:
-            req.range_ = VersionRange()
+            def ranking(version, rank_):
+                wild_ver = deer.restore(str(version))
+                ranks[wild_ver] = rank_
+            deer.on_version(ranking)
 
         cleaned_request = str(req)
-
         # do some cleanup
-        for uid, token in wildcard_map.items():
-            cleaned_request = cleaned_request.replace(uid, token)
-            for key in list(ranks):
-                if uid in key:
-                    clean_key = key.replace(uid, token)
-                    ranks[clean_key] = -1 if "**" in token else ranks[key]
-                    ranks.pop(key)
+        cleaned_request = deer.restore(cleaned_request)
 
         if len(ranks) > 1:
-            directive = None
+            rank = next(v for k, v in ranks.items() if "*" in k)
         else:
             rank = next(iter(ranks.values()))
-            if rank < 0:
-                directive = "harden"
-            else:
-                directive = "harden(%d)" % rank
+
+        if rank < 0:
+            directive = "harden"
+        else:
+            directive = "harden(%d)" % rank
 
         return cleaned_request, directive
 
