@@ -25,6 +25,11 @@ class DirectiveHarden(DirectiveBase):
             return [int(arg_string[1:-1].strip())]
         return []
 
+    def to_string(self, args):
+        if args and args[0]:
+            return "%s(%d)" % (self.name, args[0])
+        return self.name
+
     def process(self, range_, version, rank=None):
         if rank:
             version = version.trim(rank)
@@ -49,6 +54,10 @@ class RequestExpansionManager(object):
         for name, expander in self._handlers.items():
             if string == name or string.startswith(name + "("):
                 return name, expander.parse(string[len(name):])
+
+    def to_string(self, name, args):
+        expander = self._handlers[name]
+        return expander.to_string(args)
 
     def process(self, range_, version, name, args):
         expander = self._handlers[name]
@@ -266,9 +275,10 @@ class _InventoryHandle(object):
         self._inventory.select(identifier)
 
 
-def anonymous_directive(request):
+def anonymous_directive_string(request):
     """Test use"""
-    return _anonymous_directives.get(request)
+    name, args = _anonymous_directives.get(request)
+    return _request_expansion_manager.to_string(name, args)
 
 
 _lock = Lock()

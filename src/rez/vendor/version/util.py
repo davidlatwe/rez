@@ -97,9 +97,8 @@ class WildcardReplacer(object):
 
         def clean_version(version):
             rank = len(version)
+            original = version
             wildcard_found = False
-
-            on_version(version, rank)
 
             while version and str(version[-1]) in wildcard_map:
                 token_ = wildcard_map[str(version[-1])]
@@ -115,6 +114,7 @@ class WildcardReplacer(object):
 
                 wildcard_found = True
 
+            on_version(original, rank)
             if wildcard_found:
                 return on_wildcard(version, rank)
 
