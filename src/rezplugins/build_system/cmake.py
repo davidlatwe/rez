@@ -160,13 +160,17 @@ class CMakeBuildSystem(BuildSystem):
                                      install_path=install_path)
 
         # run the build command and capture/print stderr at the same time
-        retcode, _, _ = context.execute_shell(command=cmd,
-                                              block=True,
-                                              cwd=build_path,
-                                              post_actions_callback=callback)
+        retcode, stdout, stderr = context.execute_shell(
+            command=cmd,
+            block=True,
+            cwd=build_path,
+            post_actions_callback=callback
+        )
         ret = {}
         if retcode:
             ret["success"] = False
+            ret["stdout"] = stdout
+            ret["stderr"] = stderr
             return ret
 
         if self.write_build_scripts:

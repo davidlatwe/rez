@@ -253,6 +253,11 @@ class LocalBuildProcess(BuildProcessHelper):
                 if install:
                     self._rmtree(variant_install_path)
 
+                print("STDOUT")
+                print(build_result.get("stdout"))
+                print("STDERR")
+                print(build_result.get("stderr"))
+
                 raise BuildError("The %s build system failed." % build_system_name)
 
             if install:
