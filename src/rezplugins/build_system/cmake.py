@@ -212,7 +212,7 @@ class CMakeBuildSystem(BuildSystem):
 
         # execute make within the build env
         _pr("\nExecuting: %s" % ' '.join(cmd))
-        retcode, stdout, stdout = context.execute_shell(
+        retcode, stdout, stderr = context.execute_shell(
             command=cmd,
             block=True,
             cwd=build_path,
@@ -224,7 +224,7 @@ class CMakeBuildSystem(BuildSystem):
 
             # execute make install within the build env
             _pr("\nExecuting: %s" % ' '.join(cmd))
-            retcode, stdout, stdout = context.execute_shell(
+            retcode, stdout, stderr = context.execute_shell(
                 command=cmd,
                 block=True,
                 cwd=build_path,
