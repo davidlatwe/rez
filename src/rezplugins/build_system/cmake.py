@@ -15,6 +15,7 @@ from rez.backport.shutilwhich import which
 from rez.vendor.schema.schema import Or
 from rez.vendor.six import six
 from rez.shells import create_shell
+import subprocess
 import functools
 import os.path
 import sys
@@ -164,7 +165,9 @@ class CMakeBuildSystem(BuildSystem):
             command=cmd,
             block=True,
             cwd=build_path,
-            post_actions_callback=callback
+            post_actions_callback=callback,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
         )
         ret = {}
         if retcode:
@@ -216,7 +219,9 @@ class CMakeBuildSystem(BuildSystem):
             command=cmd,
             block=True,
             cwd=build_path,
-            post_actions_callback=callback
+            post_actions_callback=callback,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
         )
 
         if not retcode and install and "install" not in cmd:
@@ -228,7 +233,9 @@ class CMakeBuildSystem(BuildSystem):
                 command=cmd,
                 block=True,
                 cwd=build_path,
-                post_actions_callback=callback
+                post_actions_callback=callback,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
             )
 
         ret["success"] = (not retcode)
