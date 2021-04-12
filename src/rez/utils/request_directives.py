@@ -90,19 +90,14 @@ def collect_directive_requests():
         _lock.release()
 
 
-def retrieve_directives(variant):
-    handle = _InventoryHandle(_identified_directives)
-    handle.set_package(variant)
-    return _identified_directives.retrieve()
-
-
 def apply_expanded_requires(variant):
     handle = _InventoryHandle(_expanded_requirements)
     handle.set_package(variant)
+    expanded_requires = _expanded_requirements.retrieve()
+
     # just like how `cached_property` caching attributes, override
     # requirement attributes internally. These change will be picked
     # up by `variant.parent.validated_data`.
-    expanded_requires = _expanded_requirements.retrieve()
     for key, value in expanded_requires.items():
         # requires, build_requires, private_build_requires
         setattr(variant.parent.resource, key, value)
@@ -115,9 +110,13 @@ def expand_requires(variant, context):
     3. match directives with context resolved packages
     4. pass resolved package versions and directive to expansion manager
     """
+    # retrieve directives
+    handle = _InventoryHandle(_identified_directives)
+    handle.set_package(variant)
+    directives = _identified_directives.retrieve()
+
     expanded = dict()
     resolved_packages = {p.name: p for p in context.resolved_packages}
-    directives = retrieve_directives(variant)
     attributes = [
         "requires",
         "build_requires",
