@@ -212,22 +212,28 @@ class CMakeBuildSystem(BuildSystem):
 
         # execute make within the build env
         _pr("\nExecuting: %s" % ' '.join(cmd))
-        retcode, _, _ = context.execute_shell(command=cmd,
-                                              block=True,
-                                              cwd=build_path,
-                                              post_actions_callback=callback)
+        retcode, stdout, stdout = context.execute_shell(
+            command=cmd,
+            block=True,
+            cwd=build_path,
+            post_actions_callback=callback
+        )
 
         if not retcode and install and "install" not in cmd:
             cmd.append("install")
 
             # execute make install within the build env
             _pr("\nExecuting: %s" % ' '.join(cmd))
-            retcode, _, _ = context.execute_shell(command=cmd,
-                                                  block=True,
-                                                  cwd=build_path,
-                                                  post_actions_callback=callback)
+            retcode, stdout, stdout = context.execute_shell(
+                command=cmd,
+                block=True,
+                cwd=build_path,
+                post_actions_callback=callback
+            )
 
         ret["success"] = (not retcode)
+        ret["stdout"] = stdout
+        ret["stderr"] = stderr
         return ret
 
     @classmethod
