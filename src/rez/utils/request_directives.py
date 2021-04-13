@@ -4,17 +4,36 @@ from rez.vendor.version.requirement import Requirement
 from rez.vendor.version.util import dewildcard
 from rez.utils.formatting import PackageRequest
 from copy import copy
+import inspect
+import sys
 
 
 # directives
 #
 
 class DirectiveBase(object):
-    pass
+    @classmethod
+    def name(cls):
+        """Return the name of the directive"""
+        raise NotImplementedError
+
+    def parse(self, arg_string):
+        """Parse arguments from directive syntax string"""
+        raise NotImplementedError
+
+    def to_string(self, args):
+        """Format arguments to directive syntax string"""
+        raise NotImplementedError
+
+    def process(self, range_, version, rank=None):
+        """Process requirement's version range"""
+        raise NotImplementedError
 
 
 class DirectiveHarden(DirectiveBase):
-    name = "harden"
+    @classmethod
+    def name(cls):
+        return "harden"
 
     def parse(self, arg_string):
         if arg_string:
@@ -36,39 +55,6 @@ class DirectiveHarden(DirectiveBase):
 
 # helpers
 #
-
-class DirectiveManager(object):
-
-    def __init__(self):
-        self._handlers = dict()
-
-    def register_handler(self, cls, name=None, *args, **kwargs):
-        name = name or cls.name
-        self._handlers[name] = cls(*args, **kwargs)
-
-    def parse(self, string):
-        for name, expander in self._handlers.items():
-            if string == name or string.startswith(name + "("):
-                return name, expander.parse(string[len(name):])
-
-    def to_string(self, name, args):
-        expander = self._handlers[name]
-        return expander.to_string(args)
-
-    def process(self, range_, version, name, args):
-        expander = self._handlers[name]
-        return expander.process(range_, version, *args)
-
-
-def register_directive(cls, name=None, manager=None, *args, **kwargs):
-    manager = manager or _directive_manager
-    manager.register_handler(cls, name, *args, **kwargs)
-
-
-_directive_manager = DirectiveManager()
-register_directive(DirectiveHarden)
-# TODO: auto register all subclasses of DirectiveBase in this module
-
 
 def collect_directive_requires(package):
     """
@@ -120,7 +106,7 @@ def process_directives(variant, context):
                 has_directive = True
                 name, args = directive
 
-                new_range = _directive_manager.process(
+                new_range = directive_manager.process(
                     request.range,
                     package.version,
                     name,
@@ -154,8 +140,8 @@ class DirectiveRequestParser(object):
             return request
 
         # parse directive and save into anonymous inventory
-        directive_args = _directive_manager.parse(directive)
-        _loaded_directives.put(directive_args,
+        _directive_args = directive_manager.parse(directive)
+        _loaded_directives.put(_directive_args,
                                key=request_,
                                anonymous=True)
 
@@ -188,6 +174,39 @@ def _convert_wildcard_to_directive(request):
         directive = "harden(%d)" % rank
 
     return cleaned_request, directive
+
+
+class DirectiveManager(object):
+
+    def __init__(self):
+        self._handlers = dict()
+
+    def register_handler(self, cls, name=None, *args, **kwargs):
+        name = name or cls.name()
+        self._handlers[name] = cls(*args, **kwargs)
+
+    def parse(self, string):
+        for name, expander in self._handlers.items():
+            if string == name or string.startswith(name + "("):
+                return name, expander.parse(string[len(name):])
+
+    def to_string(self, name, args):
+        expander = self._handlers[name]
+        return expander.to_string(args)
+
+    def process(self, range_, version, name, args):
+        expander = self._handlers[name]
+        return expander.process(range_, version, *args)
+
+
+directive_manager = DirectiveManager()
+
+# Auto register all subclasses of DirectiveBase in this module
+for obj in list(sys.modules[__name__].__dict__.values()):
+    if not inspect.isclass(obj):
+        continue
+    if issubclass(obj, DirectiveBase) and obj is not DirectiveBase:
+        directive_manager.register_handler(obj)
 
 
 # Database, internal use
@@ -239,7 +258,7 @@ class _Inventory(object):
 def anonymous_directive_string(request):
     """Test use"""
     name, args = _loaded_directives.retrieve(request, anonymous=True)
-    return _directive_manager.to_string(name, args)
+    return directive_manager.to_string(name, args)
 
 
 _loaded_directives = _Inventory()
