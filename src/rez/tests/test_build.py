@@ -180,11 +180,14 @@ class TestBuild(TestBase, TempdirMixin):
     def test_build_soft(self):
         self._test_build("soft_dep", "1.0.0")
         self._test_build("soft_dep", "1.1.0")
+        self._test_build("soft_var", "2.1")
+        self._test_build("soft_var", "3.0")
         self._test_build("soft")
 
         soft = get_package("soft", "1", paths=[self.install_root])
-        self.assertEqual(str(soft.requires[0]), "soft_dep-1.0")
-        # self.assertEqual(str(soft.requires[1]), "soft_dep<1.1")
+        self.assertEqual("soft_dep-1.0", str(soft.requires[0]))
+        self.assertEqual(["soft_var-2.1"], list(map(str, soft.variants[0])))
+        self.assertEqual(["soft_var-3.0"], list(map(str, soft.variants[1])))
 
 
 if __name__ == '__main__':

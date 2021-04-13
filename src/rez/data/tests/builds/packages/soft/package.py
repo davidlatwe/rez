@@ -4,4 +4,8 @@ authors = ['davidlatwe']
 requires = [
     'soft_dep-1.*<1.1.0',
 ]
+variants = [
+    ['soft_var-2.*'],
+    ['soft_var-3.*'],
+]
 build_command = False
