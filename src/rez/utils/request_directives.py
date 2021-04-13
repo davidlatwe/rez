@@ -1,13 +1,8 @@
 
-from rez.exceptions import PackageRequestError
-from rez.vendor.version.version import VersionRange, Version
-from rez.vendor.version.requirement import Requirement, VersionedObject
-from rez.vendor.version.util import is_valid_bound, dewildcard
+from rez.vendor.version.version import VersionRange
+from rez.vendor.version.requirement import Requirement
+from rez.vendor.version.util import dewildcard
 from rez.utils.formatting import PackageRequest
-from contextlib import contextmanager
-from threading import Lock
-from uuid import uuid4
-import re
 
 
 # directives
@@ -74,15 +69,14 @@ register_expansion_handler(DirectiveHarden)
 # TODO: auto register all subclasses of DirectiveBase in this module
 
 
-@contextmanager
-def collect_directive_requests():
+def collect_directive_requires(package):
     """
     Open anonymous space
     Pour directives into anonymous space while package schema validating
     Move directives into identified space after package data validated
     """
     handle = _InventoryHandle()
-    yield handle
+    handle.set_package(package)
     _identified_directives.check_in(handle.key)
 
 
@@ -152,25 +146,6 @@ def expand_requires(variant, context):
 
 
 class DirectiveRequestParser(object):
-    """
-    Convertible:
-        foo-**          -> foo//harden
-        foo==**         -> foo//harden
-        foo-1.**        -> foo-1//harden
-        foo==1.*        -> foo-1//harden(2)
-        foo>1.*         -> foo>1//harden(2)
-        foo-1.*+        -> foo-1+//harden(2)
-        foo>=1.*        -> foo>=1//harden(2)
-
-    Unsupported:
-        foo-1..2.*      -| multi-rank hardening
-        foo-2.*,1       -| multi-rank hardening
-        foo-1.*+<2.*.*  -| multi-rank hardening
-        foo<**          -| harden undefined bound (doesn't make sense either)
-
-    """
-    directive_regex = re.compile(r"[-@#=<>.]\*(?!.*//)|//")
-    unsupported_regex = re.compile(r"[|,]|\.{2}|[+<>]\*|\*[<>+].+")
 
     @classmethod
     def parse(cls, request):
@@ -179,46 +154,45 @@ class DirectiveRequestParser(object):
         if "//" in request:
             request_, directive = request.split("//", 1)
         elif "*" in request:
-            request_, directive = cls.convert_wildcard_to_directive(request)
+            request_, directive = _convert_wildcard_to_directive(request)
             if not directive:
                 return request
         else:
             return request
 
-        # TODO: parse directive and save, via manager
+        # parse directive and save into anonymous inventory
         directive_args = _request_expansion_manager.parse(directive)
-        # save directive into anonymous inventory for now.
         _anonymous_directives[request_] = directive_args
 
         return request_
 
-    @classmethod
-    def convert_wildcard_to_directive(cls, request):
-        ranks = dict()
 
-        with dewildcard(request) as deer:
-            req = deer.victim
+def _convert_wildcard_to_directive(request):
+    ranks = dict()
 
-            def ranking(version, rank_):
-                wild_ver = deer.restore(str(version))
-                ranks[wild_ver] = rank_
-            deer.on_version(ranking)
+    with dewildcard(request) as deer:
+        req = deer.victim
 
-        cleaned_request = str(req)
-        # do some cleanup
-        cleaned_request = deer.restore(cleaned_request)
+        def ranking(version, rank_):
+            wild_ver = deer.restore(str(version))
+            ranks[wild_ver] = rank_
+        deer.on_version(ranking)
 
-        if len(ranks) > 1:
-            rank = next(v for k, v in ranks.items() if "*" in k)
-        else:
-            rank = next(iter(ranks.values()))
+    cleaned_request = str(req)
+    # do some cleanup
+    cleaned_request = deer.restore(cleaned_request)
 
-        if rank < 0:
-            directive = "harden"
-        else:
-            directive = "harden(%d)" % rank
+    if len(ranks) > 1:
+        rank = next(v for k, v in ranks.items() if "*" in k)
+    else:
+        rank = next(iter(ranks.values()))
 
-        return cleaned_request, directive
+    if rank < 0:
+        directive = "harden"
+    else:
+        directive = "harden(%d)" % rank
+
+    return cleaned_request, directive
 
 
 # Database, internal use
