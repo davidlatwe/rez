@@ -76,6 +76,34 @@ def parse_directive(request):
     return request_
 
 
+def _convert_wildcard_to_directive(request):
+    ranks = dict()
+
+    with dewildcard(request) as deer:
+        req = deer.victim
+
+        def ranking(version, rank_):
+            wild_ver = deer.restore(str(version))
+            ranks[wild_ver] = rank_
+        deer.on_version(ranking)
+
+    cleaned_request = str(req)
+    # do some cleanup
+    cleaned_request = deer.restore(cleaned_request)
+
+    if len(ranks) > 1:
+        rank = next(v for k, v in ranks.items() if "*" in k)
+    else:
+        rank = next(iter(ranks.values()))
+
+    if rank < 0:
+        directive = "harden"
+    else:
+        directive = "harden(%d)" % rank
+
+    return cleaned_request, directive
+
+
 def bind_directives(package):
     """
     Open anonymous space
@@ -83,17 +111,6 @@ def bind_directives(package):
     Move directives into identified space after package data validated
     """
     directive_manager.loaded.commit(key=package)
-
-
-def apply_directives(variant):
-    directed_requires = directive_manager.processed.retrieve(key=variant)
-
-    # just like how `cached_property` caching attributes, override
-    # requirement attributes internally. These change will be picked
-    # up by `variant.parent.validated_data`.
-    for key, value in directed_requires.items():
-        # requires, build_requires, private_build_requires
-        setattr(variant.parent.resource, key, value)
 
 
 def process_directives(variant, context):
@@ -144,32 +161,15 @@ def process_directives(variant, context):
     directive_manager.processed.put(processed, key=variant)
 
 
-def _convert_wildcard_to_directive(request):
-    ranks = dict()
+def apply_directives(variant):
+    directed_requires = directive_manager.processed.retrieve(key=variant)
 
-    with dewildcard(request) as deer:
-        req = deer.victim
-
-        def ranking(version, rank_):
-            wild_ver = deer.restore(str(version))
-            ranks[wild_ver] = rank_
-        deer.on_version(ranking)
-
-    cleaned_request = str(req)
-    # do some cleanup
-    cleaned_request = deer.restore(cleaned_request)
-
-    if len(ranks) > 1:
-        rank = next(v for k, v in ranks.items() if "*" in k)
-    else:
-        rank = next(iter(ranks.values()))
-
-    if rank < 0:
-        directive = "harden"
-    else:
-        directive = "harden(%d)" % rank
-
-    return cleaned_request, directive
+    # just like how `cached_property` caching attributes, override
+    # requirement attributes internally. These change will be picked
+    # up by `variant.parent.validated_data`.
+    for key, value in directed_requires.items():
+        # requires, build_requires, private_build_requires
+        setattr(variant.parent.resource, key, value)
 
 
 class DirectiveManager(object):
