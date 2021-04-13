@@ -17,9 +17,10 @@ basestring = six.string_types[0]
 
 
 def late_expand_requirement(request):
-    """
+    """Expands a requirement string after resolve, if possible
     """
     request_ = parse_directive(request)
+    # should we prompt warning when it ends up early expand ?
     return expand_requirement(request_)
 
 

@@ -13,6 +13,7 @@ import sys
 #
 
 class DirectiveBase(object):
+    """Base class of directive request handler"""
     @classmethod
     def name(cls):
         """Return the name of the directive"""
@@ -32,6 +33,7 @@ class DirectiveBase(object):
 
 
 class DirectiveHarden(DirectiveBase):
+    """Harden directive request version to specific rank"""
     @classmethod
     def name(cls):
         return "harden"
@@ -58,6 +60,8 @@ class DirectiveHarden(DirectiveBase):
 #
 
 def parse_directive(request):
+    """Parsing directive requests when creating package
+    """
     if "//" in request:
         request_, directive = request.split("//", 1)
     elif "*" in request:
@@ -92,6 +96,7 @@ def _convert_wildcard_to_directive(request):
     cleaned_request = deer.restore(cleaned_request)
 
     if len(ranks) > 1:
+        # should we support this ?
         return None, None
     else:
         rank = next(iter(ranks.values()))
@@ -105,10 +110,7 @@ def _convert_wildcard_to_directive(request):
 
 
 def bind_directives(package):
-    """
-    Open anonymous space
-    Pour directives into anonymous space while package schema validating
-    Move directives into identified space after package data validated
+    """Bind previously parsed directives to each variants
     """
     anonymous = directive_manager.loaded.storage(anonymous=True)
 
@@ -125,13 +127,8 @@ def bind_directives(package):
 
 
 def process_directives(variant, context):
+    """Evaluate directives with resolved context
     """
-    1. collect requires from variant
-    2. retrieve directives from inventory for each require of variant
-    3. match directives with context resolved packages
-    4. pass resolved package versions and directive to expansion manager
-    """
-    # retrieve directives
     package = variant.parent
     package_data = package.validated_data()
 
@@ -178,6 +175,8 @@ def process_directives(variant, context):
 
 
 def apply_directives(variant):
+    """Patch evaluated directives to variant on install
+    """
     directed_requires = directive_manager.processed.retrieve(key=variant)
 
     # Just like how `cached_property` caching attributes, override
