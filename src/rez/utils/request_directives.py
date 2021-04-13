@@ -56,7 +56,27 @@ class DirectiveHarden(DirectiveBase):
 # helpers
 #
 
-def collect_directive_requires(package):
+def parse_directive(request):
+    if "//" in request:
+        request_, directive = request.split("//", 1)
+        # TODO: ranking needed.
+    elif "*" in request:
+        request_, directive = _convert_wildcard_to_directive(request)
+        if not directive:
+            return request
+    else:
+        return request
+
+    # parse directive and save into anonymous inventory
+    _directive_args = directive_manager.parse(directive)
+    _loaded_directives.put(_directive_args,
+                           key=request_,
+                           anonymous=True)
+
+    return request_
+
+
+def bind_directives(package):
     """
     Open anonymous space
     Pour directives into anonymous space while package schema validating
@@ -98,6 +118,7 @@ def process_directives(variant, context):
         changed_requires = []
         has_directive = False
 
+        # MOVE THIS TO ANOTHER FUNCTION
         for request in getattr(variant, attr, None) or []:
             directive = directives.get(str(request))
             package = resolved_packages.get(request.name)
@@ -121,31 +142,6 @@ def process_directives(variant, context):
             processed[attr] = changed_requires
 
     _processed_directives.put(processed, key=variant)
-
-
-class DirectiveRequestParser(object):
-
-    @classmethod
-    def parse(cls, request):
-        """parse requirement expansion directive"""
-
-        if "//" in request:
-            request_, directive = request.split("//", 1)
-            # TODO: ranking needed.
-        elif "*" in request:
-            request_, directive = _convert_wildcard_to_directive(request)
-            if not directive:
-                return request
-        else:
-            return request
-
-        # parse directive and save into anonymous inventory
-        _directive_args = directive_manager.parse(directive)
-        _loaded_directives.put(_directive_args,
-                               key=request_,
-                               anonymous=True)
-
-        return request_
 
 
 def _convert_wildcard_to_directive(request):

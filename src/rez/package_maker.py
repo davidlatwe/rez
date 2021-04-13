@@ -4,7 +4,7 @@ from rez.utils.filesystem import retain_cwd
 from rez.utils.formatting import PackageRequest
 from rez.utils.data_utils import AttrDictWrapper
 from rez.utils.logging_ import print_warning
-from rez.utils.request_directives import collect_directive_requires
+from rez.utils.request_directives import bind_directives
 from rez.exceptions import PackageMetadataError
 from rez.package_resources import help_schema, _commands_schema, \
     _function_schema, late_bound
@@ -142,8 +142,8 @@ class PackageMaker(AttrDictWrapper):
         # revalidate the package for extra measure
         package.validate_data()
 
-        # save directive requires
-        collect_directive_requires(package)
+        # bind schema validated directive requires with package
+        bind_directives(package)
 
         return package
 
