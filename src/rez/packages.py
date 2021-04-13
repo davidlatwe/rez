@@ -7,7 +7,7 @@ from rez.utils import reraise
 from rez.utils.sourcecode import SourceCode
 from rez.utils.data_utils import cached_property
 from rez.utils.formatting import StringFormatMixin, StringFormatType
-from rez.utils.request_directives import apply_expanded_requires
+from rez.utils.request_directives import apply_directives
 from rez.utils.schema import schema_keys
 from rez.utils.resources import ResourceHandle, ResourceWrapper
 from rez.exceptions import PackageFamilyNotFoundError, ResourceError
@@ -445,7 +445,7 @@ class Variant(PackageBaseResourceWrapper):
             `Variant` object - the (existing or newly created) variant in the
             specified repository. If `dry_run` is True, None may be returned.
         """
-        apply_expanded_requires(self)
+        apply_directives(self)
 
         repo = package_repository_manager.get_repository(path)
         resource = repo.install_variant(self.resource,

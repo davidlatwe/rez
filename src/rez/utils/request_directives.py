@@ -3,6 +3,7 @@ from rez.vendor.version.version import VersionRange
 from rez.vendor.version.requirement import Requirement
 from rez.vendor.version.util import dewildcard
 from rez.utils.formatting import PackageRequest
+from copy import copy
 
 
 # directives
@@ -36,7 +37,7 @@ class DirectiveHarden(DirectiveBase):
 # helpers
 #
 
-class RequestExpansionManager(object):
+class DirectiveManager(object):
 
     def __init__(self):
         self._handlers = dict()
@@ -59,13 +60,13 @@ class RequestExpansionManager(object):
         return expander.process(range_, version, *args)
 
 
-def register_expansion_handler(cls, name=None, manager=None, *args, **kwargs):
-    manager = manager or _request_expansion_manager
+def register_directive(cls, name=None, manager=None, *args, **kwargs):
+    manager = manager or _directive_manager
     manager.register_handler(cls, name, *args, **kwargs)
 
 
-_request_expansion_manager = RequestExpansionManager()
-register_expansion_handler(DirectiveHarden)
+_directive_manager = DirectiveManager()
+register_directive(DirectiveHarden)
 # TODO: auto register all subclasses of DirectiveBase in this module
 
 
@@ -75,25 +76,21 @@ def collect_directive_requires(package):
     Pour directives into anonymous space while package schema validating
     Move directives into identified space after package data validated
     """
-    handle = _InventoryHandle()
-    handle.set_package(package)
-    _identified_directives.check_in(handle.key)
+    _loaded_directives.commit(key=package)
 
 
-def apply_expanded_requires(variant):
-    handle = _InventoryHandle()
-    handle.set_package(variant)
-    expanded_requires = _expanded_requirements.retrieve(handle.key)
+def apply_directives(variant):
+    directed_requires = _processed_directives.retrieve(key=variant)
 
     # just like how `cached_property` caching attributes, override
     # requirement attributes internally. These change will be picked
     # up by `variant.parent.validated_data`.
-    for key, value in expanded_requires.items():
+    for key, value in directed_requires.items():
         # requires, build_requires, private_build_requires
         setattr(variant.parent.resource, key, value)
 
 
-def expand_requires(variant, context):
+def process_directives(variant, context):
     """
     1. collect requires from variant
     2. retrieve directives from inventory for each require of variant
@@ -101,11 +98,9 @@ def expand_requires(variant, context):
     4. pass resolved package versions and directive to expansion manager
     """
     # retrieve directives
-    handle = _InventoryHandle()
-    handle.set_package(variant)
-    directives = _identified_directives.retrieve(handle.key)
+    directives = _loaded_directives.retrieve(key=variant) or dict()
 
-    expanded = dict()
+    processed = dict()
     resolved_packages = {p.name: p for p in context.resolved_packages}
     attributes = [
         "requires",
@@ -115,34 +110,31 @@ def expand_requires(variant, context):
     ]
     for attr in attributes:
         changed_requires = []
-        has_expansion = False
+        has_directive = False
 
-        for requirement in getattr(variant, attr, None) or []:
-            directive = directives.get(str(requirement))
-            package = resolved_packages.get(requirement.name)
+        for request in getattr(variant, attr, None) or []:
+            directive = directives.get(str(request))
+            package = resolved_packages.get(request.name)
 
             if directive and package:
-                has_expansion = True
+                has_directive = True
                 name, args = directive
 
-                requirement = PackageRequest(str(Requirement.construct(
-                    name=package.name,
-                    range=_request_expansion_manager.process(
-                        requirement.range,
-                        package.version,
-                        name,
-                        args,
-                    )
-                )))
+                new_range = _directive_manager.process(
+                    request.range,
+                    package.version,
+                    name,
+                    args,
+                )
+                new_req = Requirement.construct(package.name, new_range)
+                request = PackageRequest(str(new_req))
 
-            changed_requires.append(requirement)
+            changed_requires.append(request)
 
-        if has_expansion:
-            expanded[attr] = changed_requires
+        if has_directive:
+            processed[attr] = changed_requires
 
-    handle = _InventoryHandle()
-    handle.set_package(variant)
-    _expanded_requirements.put(handle.key, expanded)
+    _processed_directives.put(processed, key=variant)
 
 
 class DirectiveRequestParser(object):
@@ -153,6 +145,7 @@ class DirectiveRequestParser(object):
 
         if "//" in request:
             request_, directive = request.split("//", 1)
+            # TODO: ranking needed.
         elif "*" in request:
             request_, directive = _convert_wildcard_to_directive(request)
             if not directive:
@@ -161,8 +154,10 @@ class DirectiveRequestParser(object):
             return request
 
         # parse directive and save into anonymous inventory
-        directive_args = _request_expansion_manager.parse(directive)
-        _anonymous_directives[request_] = directive_args
+        directive_args = _directive_manager.parse(directive)
+        _loaded_directives.put(directive_args,
+                               key=request_,
+                               anonymous=True)
 
         return request_
 
@@ -201,46 +196,51 @@ def _convert_wildcard_to_directive(request):
 class _Inventory(object):
 
     def __init__(self):
-        self._storage = dict()
+        self._anonymous = dict()
+        self._identified = dict()
 
-    def put(self, key, data):
-        self._storage[key] = data
+    def _storage(self, anonymous):
+        return self._anonymous if anonymous else self._identified
 
-    def retrieve(self, key):
-        if key not in self._storage:
-            return dict()
-        return self._storage[key].copy()
+    def _hash(self, key, anonymous):
+        if anonymous:
+            return key
+        else:
+            package = key
+            return (
+                package.name,
+                str(package.version),
+                package.uuid,
+            )
 
-    def drop(self, key):
-        self._storage.pop(key)
+    def commit(self, key):
+        key = self._hash(key, anonymous=False)
+        self._identified[key] = self._anonymous.copy()
+        self._anonymous.clear()
 
+    def put(self, data, key, anonymous=False):
+        key = self._hash(key, anonymous)
+        storage = self._storage(anonymous)
+        storage[key] = data
 
-class _DirectiveInventory(_Inventory):
+    def retrieve(self, key, anonymous=False):
+        key = self._hash(key, anonymous)
+        storage = self._storage(anonymous)
+        if key in storage:
+            return copy(storage[key])
 
-    def check_in(self, key):
-        self._storage[key] = _anonymous_directives.copy()
-        _anonymous_directives.clear()
-
-
-class _InventoryHandle(object):
-
-    def __init__(self):
-        self.key = None
-
-    def set_package(self, package):
-        self.key = (
-            package.name,
-            str(package.version),
-            package.uuid,
-        )
+    def drop(self, key, anonymous=False):
+        key = self._hash(key, anonymous)
+        storage = self._storage(anonymous)
+        if key in storage:
+            storage.pop(key)
 
 
 def anonymous_directive_string(request):
     """Test use"""
-    name, args = _anonymous_directives.get(request)
-    return _request_expansion_manager.to_string(name, args)
+    name, args = _loaded_directives.retrieve(request, anonymous=True)
+    return _directive_manager.to_string(name, args)
 
 
-_anonymous_directives = dict()
-_identified_directives = _DirectiveInventory()
-_expanded_requirements = _Inventory()
+_loaded_directives = _Inventory()
+_processed_directives = _Inventory()
