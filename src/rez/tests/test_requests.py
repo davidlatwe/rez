@@ -4,7 +4,7 @@ Test requests
 import unittest
 from rez.tests.util import TestBase
 from rez.utils.request_directives import \
-    DirectiveRequestParser, anonymous_directive_string
+    parse_directive, anonymous_directive_string
 
 
 class TestRequest(TestBase):
@@ -32,7 +32,7 @@ class TestRequest(TestBase):
         ]
 
         for case, expected, message in requests:
-            request = DirectiveRequestParser.parse(case)
+            request = parse_directive(case)
             directive = anonymous_directive_string(request) or ""
 
             if expected is None:

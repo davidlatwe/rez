@@ -42,8 +42,8 @@ class DirectiveHarden(DirectiveBase):
 
     def to_string(self, args):
         if args and args[0]:
-            return "%s(%d)" % (self.name, args[0])
-        return self.name
+            return "%s(%d)" % (self.name(), args[0])
+        return self.name()
 
     def process(self, range_, version, rank=None):
         if rank:
@@ -69,9 +69,9 @@ def parse_directive(request):
 
     # parse directive and save into anonymous inventory
     _directive_args = directive_manager.parse(directive)
-    _loaded_directives.put(_directive_args,
-                           key=request_,
-                           anonymous=True)
+    directive_manager.loaded.put(_directive_args,
+                                 key=request_,
+                                 anonymous=True)
 
     return request_
 
@@ -82,11 +82,11 @@ def bind_directives(package):
     Pour directives into anonymous space while package schema validating
     Move directives into identified space after package data validated
     """
-    _loaded_directives.commit(key=package)
+    directive_manager.loaded.commit(key=package)
 
 
 def apply_directives(variant):
-    directed_requires = _processed_directives.retrieve(key=variant)
+    directed_requires = directive_manager.processed.retrieve(key=variant)
 
     # just like how `cached_property` caching attributes, override
     # requirement attributes internally. These change will be picked
@@ -104,7 +104,7 @@ def process_directives(variant, context):
     4. pass resolved package versions and directive to expansion manager
     """
     # retrieve directives
-    directives = _loaded_directives.retrieve(key=variant) or dict()
+    directives = directive_manager.loaded.retrieve(key=variant) or dict()
 
     processed = dict()
     resolved_packages = {p.name: p for p in context.resolved_packages}
@@ -141,7 +141,7 @@ def process_directives(variant, context):
         if has_directive:
             processed[attr] = changed_requires
 
-    _processed_directives.put(processed, key=variant)
+    directive_manager.processed.put(processed, key=variant)
 
 
 def _convert_wildcard_to_directive(request):
@@ -175,40 +175,37 @@ def _convert_wildcard_to_directive(request):
 class DirectiveManager(object):
 
     def __init__(self):
+        self._loaded = PackageDataInventory()
+        self._processed = PackageDataInventory()
         self._handlers = dict()
+
+    @property
+    def loaded(self):
+        return self._loaded
+
+    @property
+    def processed(self):
+        return self._processed
 
     def register_handler(self, cls, name=None, *args, **kwargs):
         name = name or cls.name()
         self._handlers[name] = cls(*args, **kwargs)
 
     def parse(self, string):
-        for name, expander in self._handlers.items():
+        for name, handler in self._handlers.items():
             if string == name or string.startswith(name + "("):
-                return name, expander.parse(string[len(name):])
+                return name, handler.parse(string[len(name):])
 
     def to_string(self, name, args):
-        expander = self._handlers[name]
-        return expander.to_string(args)
+        handler = self._handlers[name]
+        return handler.to_string(args)
 
     def process(self, range_, version, name, args):
-        expander = self._handlers[name]
-        return expander.process(range_, version, *args)
+        handler = self._handlers[name]
+        return handler.process(range_, version, *args)
 
 
-directive_manager = DirectiveManager()
-
-# Auto register all subclasses of DirectiveBase in this module
-for obj in list(sys.modules[__name__].__dict__.values()):
-    if not inspect.isclass(obj):
-        continue
-    if issubclass(obj, DirectiveBase) and obj is not DirectiveBase:
-        directive_manager.register_handler(obj)
-
-
-# Database, internal use
-#
-
-class _Inventory(object):
+class PackageDataInventory(object):
 
     def __init__(self):
         self._anonymous = dict()
@@ -253,9 +250,15 @@ class _Inventory(object):
 
 def anonymous_directive_string(request):
     """Test use"""
-    name, args = _loaded_directives.retrieve(request, anonymous=True)
+    name, args = directive_manager.loaded.retrieve(request, anonymous=True)
     return directive_manager.to_string(name, args)
 
 
-_loaded_directives = _Inventory()
-_processed_directives = _Inventory()
+directive_manager = DirectiveManager()
+
+# Auto register all subclasses of DirectiveBase in this module
+for obj in list(sys.modules[__name__].__dict__.values()):
+    if not inspect.isclass(obj):
+        continue
+    if issubclass(obj, DirectiveBase) and obj is not DirectiveBase:
+        directive_manager.register_handler(obj)
