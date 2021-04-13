@@ -60,7 +60,6 @@ class DirectiveHarden(DirectiveBase):
 def parse_directive(request):
     if "//" in request:
         request_, directive = request.split("//", 1)
-        # TODO: ranking needed.
     elif "*" in request:
         request_, directive = _convert_wildcard_to_directive(request)
         if not directive:
@@ -93,16 +92,16 @@ def _convert_wildcard_to_directive(request):
     cleaned_request = deer.restore(cleaned_request)
 
     if len(ranks) > 1:
-        rank = next(v for k, v in ranks.items() if "*" in k)
+        return None, None
     else:
         rank = next(iter(ranks.values()))
 
-    if rank < 0:
-        directive = "harden"
-    else:
-        directive = "harden(%d)" % rank
+        if rank < 0:
+            directive = "harden"
+        else:
+            directive = "harden(%d)" % rank
 
-    return cleaned_request, directive
+        return cleaned_request, directive
 
 
 def bind_directives(package):
