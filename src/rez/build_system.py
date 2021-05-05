@@ -32,6 +32,7 @@ def get_valid_build_systems(working_dir, package=None):
         package = package or get_developer_package(working_dir)
     except PackageMetadataError:
         # no package, or bad package
+        # TODO: should have better error hint if it's bad package
         pass
 
     if package:
