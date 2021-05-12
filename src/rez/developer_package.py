@@ -185,18 +185,14 @@ class DeveloperPackage(Package):
 
         evaluated = evaluate_directive_requires(data,
                                                 self.directives,
-                                                build_context)
-        data.update(evaluated)
-
-        # re-evaluate variant
-        #
-        package_cls = type(self)
-        re_evaluated_package = create_package(self.name, data, package_cls)
-        re_evaluated_variant = re_evaluated_package.get_variant(variant.index)
-        # swapping resource
-        variant._parent = re_evaluated_package
-        variant.context = re_evaluated_package.context
-        variant.wrapped = re_evaluated_variant.wrapped
+                                                build_context,
+                                                variant.index)
+        # update package data
+        for key, value in evaluated.items():
+            if key in self.arbitrary_keys():
+                self.resource._data[key] = value
+            else:
+                setattr(self.resource, key, value)
 
     def _validate_includes(self):
         if not self.includes:

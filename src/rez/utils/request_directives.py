@@ -51,13 +51,17 @@ def filter_directive_requires(data):
     return validated, _directives
 
 
-def evaluate_directive_requires(data, directives, build_context):
+def evaluate_directive_requires(data,
+                                directives,
+                                build_context,
+                                variant_index=None):
     """Evaluate directive request with build resolved context
 
     Args:
         data (`dict`): Package validated data
         directives (`dict`): request-name, directive object paired dict
         build_context (`ResolvedContext`): A context resolved for build
+        variant_index (None or `int`): Variant index
 
     Returns:
         validated (`dict`): evaluated package data
@@ -79,6 +83,16 @@ def evaluate_directive_requires(data, directives, build_context):
     })
 
     validated = _validate_partial(requires_evaluation_schema, data)
+
+    if "variants" in validated and variant_index is not None:
+        # for example:
+        #   variants = [["foo-1"], ["foo-2"]]
+        # both variant required "foo" will get harden into same version,
+        # owning to schema validation could not know which variant it's
+        # validating, so we need to restore original value for other variant.
+        variants = data["variants"][:]
+        variants[variant_index] = validated["variants"][variant_index]
+        validated["variants"] = variants
 
     return validated
 

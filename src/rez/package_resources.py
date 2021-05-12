@@ -502,7 +502,7 @@ class VariantResourceHelper(six.with_metaclass(_Metas, VariantResource)):
             root = os.path.join(self.base, subpath)
             return root
 
-    @cached_property
+    @property
     def variant_requires(self):
         index = self.index
         if index is None:
