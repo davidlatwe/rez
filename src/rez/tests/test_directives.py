@@ -4,7 +4,7 @@ Test directive requirement request/build
 import os
 import shutil
 import unittest
-from rez.tests.util import TestBase, TempdirMixin, install_dependent
+from rez.tests.util import TestBase, TempdirMixin
 from rez.resolved_context import ResolvedContext
 from rez.build_process import create_build_process
 from rez.build_system import create_build_system
@@ -45,7 +45,8 @@ class _TestBuildDirectivesBase(TestBase, TempdirMixin):
         buildsys = create_build_system(working_dir)
         return create_build_process(process_type="local",
                                     working_dir=working_dir,
-                                    build_system=buildsys)
+                                    build_system=buildsys,
+                                    quiet=True)
 
     @classmethod
     def _create_context(cls, *pkgs):

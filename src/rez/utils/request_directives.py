@@ -1,14 +1,24 @@
 
 from rez.vendor.six import six
 from rez.vendor.schema.schema import Schema, Optional, Use, And
+from rez.package_resources import late_bound
 from rez.utils.formatting import PackageRequest
-from rez.utils.data_utils import cached_property
+from rez.exceptions import PackageMetadataError
 
 
 basestring = six.string_types[0]
 
 
 def filter_directive_requires(data):
+    """Filtering raw developer package data with directive extracted
+
+    Args:
+        data (`dict`): Package data that is not yet been validated
+
+    Returns:
+        validated (`dict`): filtered package data
+        directives (`dict`): request-name, directive object paired dict
+    """
     _directives = dict()
 
     def extract_directive(request):
@@ -30,29 +40,40 @@ def filter_directive_requires(data):
     filtering_schema = And(basestring, Use(extract_directive))
 
     requires_filtering_schema = Schema({
-        Optional("requires"):               [filtering_schema],
-        Optional("build_requires"):         [filtering_schema],
-        Optional("private_build_requires"): [filtering_schema],
+        Optional("requires"):               late_bound([filtering_schema]),
+        Optional("build_requires"):         late_bound([filtering_schema]),
+        Optional("private_build_requires"): late_bound([filtering_schema]),
         Optional("variants"):               [[filtering_schema]],
     })
 
     validated = _validate_partial(requires_filtering_schema, data)
-    data.update(validated)
 
-    return data, _directives
+    return validated, _directives
 
 
-def evaluate_directive_requires(variant, build_context):
-    package = variant.parent
+def evaluate_directive_requires(data,
+                                directives,
+                                build_context,
+                                variant_index=None):
+    """Evaluate directive request with build resolved context
+
+    Args:
+        data (`dict`): Package validated data
+        directives (`dict`): request-name, directive object paired dict
+        build_context (`ResolvedContext`): A context resolved for build
+        variant_index (None or `int`): Variant index
+
+    Returns:
+        validated (`dict`): evaluated package data
+    """
 
     def evaluate_directive(request):
-        request = PackageRequest(request)
-        directive = package.directives.get(request.name)
+        directive = directives.get(request.name)
         if directive:
             request = directive.get_post_build_request(build_context)
-        return str(request)
+        return request
 
-    evaluation_schema = And(basestring, Use(evaluate_directive))
+    evaluation_schema = And(PackageRequest, Use(evaluate_directive))
 
     requires_evaluation_schema = Schema({
         Optional("requires"):               [evaluation_schema],
@@ -61,26 +82,17 @@ def evaluate_directive_requires(variant, build_context):
         Optional("variants"):               [[evaluation_schema]],
     })
 
-    validated = _validate_partial(requires_evaluation_schema, package.data)
-    # print(variant.variant_requires)
-    # print("-", package.repository.data[package.name][str(package.version)])
-    # package.repository.data[package.name][str(package.version)].update(validated)
-    # print("+", package.repository.data[package.name][str(package.version)])
-    # cached_property.uncache(package.resource, "handle")
-    # cached_property.uncache(package.resource, "_data")
-    # cached_property.uncache(variant, "parent")
-    # package.resource._load()
-    # # package.data.update(validated)
-    # print(variant.variant_requires)
-    # for key, value in validated.items():
-    #     if key == "variants":
-    #         print("-", package.data[key][variant.index])
-    #         package.data[key][variant.index][:] = value[variant.index]
-    #         print("+", package.data[key][variant.index])
-    #     else:
-    #         package.data[key][:] = value
-        # if key == "variants":
-        #     setattr(variant.resource, "variant_requires", value[variant.index])
+    validated = _validate_partial(requires_evaluation_schema, data)
+
+    if "variants" in validated and variant_index is not None:
+        # for example:
+        #   variants = [["foo-1"], ["foo-2"]]
+        # both variant required "foo" will get harden into same version,
+        # owning to schema validation could not know which variant it's
+        # validating, so we need to restore original value for other variant.
+        variants = data["variants"][:]
+        variants[variant_index] = validated["variants"][variant_index]
+        validated["variants"] = variants
 
     return validated
 
@@ -107,8 +119,9 @@ def _validate_partial(schema, data):
 class DirectiveBase(object):
     """Base class of directive request handler"""
 
-    def __init__(self, request_str):
-        self.request = PackageRequest(request_str)
+    def __init__(self, request_str, raw_request_str=None):
+        self._raw_request_str = raw_request_str
+        self._request = PackageRequest(request_str)
 
     @classmethod
     def name(cls):
@@ -118,19 +131,21 @@ class DirectiveBase(object):
     def create(cls, request):
         raise NotImplementedError
 
+    def get_raw_request_string(self):
+        return self._raw_request_str
+
     def get_pre_build_request(self):
-        return self.request
+        return self._request
 
     def get_post_build_request(self, build_context):
-        """Format arguments to directive syntax string"""
         raise NotImplementedError
 
 
 class HardenDirective(DirectiveBase):
     """Harden directive request version to specific rank"""
 
-    def __init__(self, request_str, rank=None):
-        super(HardenDirective, self).__init__(request_str)
+    def __init__(self, request_str, raw_request_str=None, rank=None):
+        super(HardenDirective, self).__init__(request_str, raw_request_str)
         self._can_harden_request()
         self.rank = rank
 
@@ -153,15 +168,19 @@ class HardenDirective(DirectiveBase):
             if arg_str:
                 rank = int(arg_str[1:-1].strip())
 
-            return cls(request_, rank=rank)
+            return cls(request_, request_str, rank=rank)
 
     def _can_harden_request(self):
-        pass
+        if self._request.conflict:
+            raise PackageMetadataError("Cannot harden conflict request.")
 
     def get_post_build_request(self, build_context):
-        pkg_name = self.request.name
+        pkg_name = self._request.name
         variant = build_context.get_resolved_package(pkg_name)
-        request_str = "%s-%s" % (pkg_name, variant.version.trim(self.rank))
+        version = variant.version
+        if self.rank is not None:
+            version = version.trim(self.rank)
+        request_str = "%s-%s" % (pkg_name, version)
         return PackageRequest(request_str)
 
 
