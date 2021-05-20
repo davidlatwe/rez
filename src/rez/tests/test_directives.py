@@ -9,8 +9,9 @@ from rez.package_repository import package_repository_manager
 from rez.package_py_utils import expand_requirement
 from rez.packages import get_package
 from rez.exceptions import BuildContextResolveError
+from rez.vendor.schema.schema import SchemaError
 from rez.tests.util import TestBase, TempdirMixin
-from rez.tests.ghostwriter import DeveloperRepository, early
+from rez.tests.ghostwriter import DeveloperRepository, early, late
 
 
 class _TestBuildDirectivesBase(TestBase, TempdirMixin):
@@ -130,10 +131,26 @@ class TestBuildDirectives(_TestBuildDirectivesBase):
         # no harden, because there were no requires when building is True
         self.assertEqual("bar-1", str(foo.requires[0]))
 
+    def test_late_bound_requires(self):
+        _k = {"build_command": False}
+
+        @late()
+        def requires():
+            return ["bar-1//harden"]
+
+        self.dev_repo.add("bar", version="1.5", **_k)
+        self.dev_repo.add("foo", version="1.0", requires=requires, **_k)
+
+        self._test_build("bar", "1.5")
+        # SchemaError raised because the directive isn't get harden in late
+        #   bound function. But, it's somehow not a correct directive use
+        #   case.
+        self.assertRaises(SchemaError, self._test_build, "foo", "1.0")
+
 
 class TestBuildNoLateExpansion(_TestBuildDirectivesBase):
 
-    def test_build_soft_without_late_expand(self):
+    def test_build_soft(self):
         _k = {"build_command": False}
 
         self.dev_repo.add("dep", version="1.0.0", **_k)
@@ -150,6 +167,40 @@ class TestBuildNoLateExpansion(_TestBuildDirectivesBase):
         # conflicts occurred: (dep-1.0.0 <--!--> dep==1.1.0)
         self.assertRaises(BuildContextResolveError,
                           self._test_build, "soft", "1")
+
+    def test_empty_early_requires(self):
+        _k = {"build_command": False}
+
+        @early()
+        def requires():
+            return [] if building else ["bar-1.*"]
+
+        self.dev_repo.add("bar", version="1.0.0", **_k)
+        self.dev_repo.add("bar", version="1.1.0", **_k)
+        self.dev_repo.add("foo", version="1.0.0", requires=requires, **_k)
+
+        self._test_build("bar", "1.0.0")
+        self._test_build("bar", "1.1.0")
+        self._test_build("foo", "1.0.0")
+        foo = get_package("foo", "1.0.0", paths=[self.install_root])
+        self.assertEqual("bar-1.1", str(foo.requires[0]))
+
+    def test_late_bound_requires(self):
+        _k = {"build_command": False}
+
+        @late()
+        def requires():
+            from rez.package_py_utils import expand_requires
+            return expand_requires(*["bar-**"])
+
+        self.dev_repo.add("bar", version="1.5", **_k)
+        self.dev_repo.add("foo", version="1.0", requires=requires, **_k)
+
+        self._test_build("bar", "1.5")
+        self._test_build("foo", "1.0")
+
+        foo = get_package("foo", "1.0", paths=[self.install_root])
+        self.assertEqual("bar-1.5", str(foo.requires[0]))
 
 
 class TestRequestDirectives(TestBase):
