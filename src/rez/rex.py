@@ -1065,6 +1065,12 @@ class EnvironmentDict(DictMixin):
     def keys(self):
         return self._var_cache.keys()
 
+    def values(self):
+        return self._var_cache.values()
+
+    def items(self):
+        return self._var_cache.items()
+
     def __repr__(self):
         return '%s(%s)' % (self.__class__.__name__, str(self._var_cache))
 
