@@ -366,6 +366,18 @@ class AttrDictWrapper(MutableMapping):
     def __repr__(self):
         return "%s(%r)" % (self.__class__.__name__, self._data)
 
+    def __contains__(self, key):
+        return key in self._data
+
+    def keys(self):
+        return self._data.keys()
+
+    def values(self):
+        return self._data.values()
+
+    def items(self):
+        return self._data.items()
+
     def copy(self):
         return self.__class__(self._data.copy())
 
